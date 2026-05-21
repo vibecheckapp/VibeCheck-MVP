@@ -425,18 +425,8 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
               </ul>
               <div className="actions">
                 <button type="button" className="button" onClick={handleLeaveRoom}>
-                  Leave Room
+                  Home
                 </button>
-                {isHost ? (
-                  <button type="button" className="button" onClick={handleReturnToLobby}>
-                    Return to Lobby
-                  </button>
-                ) : null}
-                {isHost ? (
-                  <button type="button" className="button danger" disabled={isDeleting} onClick={handleDeleteRoom}>
-                    {isDeleting ? 'Disbanding …' : 'Disband Room'}
-                  </button>
-                ) : null}
               </div>
               {deleteError ? <p className="error-message">{deleteError}</p> : null}
               {deleteSuccess ? <p className="success-message">{deleteSuccess}</p> : null}
