@@ -433,7 +433,7 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
             </>
           ) : (
             <>
-              <p>Aktueller Spieler: <strong>{currentPick?.user_name ?? 'Lädt …'}</strong></p>
+              <p>Player: <strong>{currentPick?.user_name ?? 'Lädt …'}</strong></p>
               {currentPick ? (
                 <>
                   <div className="song-card">
