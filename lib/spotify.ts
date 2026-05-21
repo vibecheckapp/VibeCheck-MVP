@@ -96,35 +96,48 @@ export async function getSpotifyAccessTokenForUser(playerId: string) {
 
 export async function fetchUserSavedTracks(playerId: string) {
   const accessToken = await getSpotifyAccessTokenForUser(playerId);
-  const response = await fetch('https://api.spotify.com/v1/me/tracks?limit=50', {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
+
+  // 1. zuerst total Anzahl holen
+  const firstPage = await fetch(
+    "https://api.spotify.com/v1/me/tracks?limit=1",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!firstPage.ok) {
+    throw new Error("Failed to fetch saved tracks (count)");
+  }
+
+  const firstData = await firstPage.json();
+  const total = firstData.total ?? 0;
+
+  if (total === 0) return [];
+
+  // 2. random offset wählen
+  const randomOffset = Math.floor(Math.random() * total);
+
+  // 3. Seite mit random offset holen
+  const response = await fetch(
+    `https://api.spotify.com/v1/me/tracks?limit=50&offset=${randomOffset}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
 
   if (!response.ok) {
-    throw new Error('Failed to fetch saved tracks from Spotify');
+    throw new Error("Failed to fetch saved tracks from Spotify");
   }
 
   const data = await response.json();
-  const tracks = (data.items ?? []).map((item: any) => item.track).filter(Boolean);
 
-  if (tracks.length > 0) {
-    return tracks;
-  }
-
-  const fallbackResponse = await fetch('https://api.spotify.com/v1/me/top/tracks?limit=50', {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-
-  if (!fallbackResponse.ok) {
-    throw new Error('Failed to fetch top tracks from Spotify');
-  }
-
-  const fallbackData = await fallbackResponse.json();
-  return fallbackData.items ?? [];
+  return (data.items ?? [])
+    .map((item: any) => item.track)
+    .filter(Boolean);
 }
 
 export async function getRandomTrackForUser(playerId: string) {
