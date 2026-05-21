@@ -13,6 +13,11 @@ export async function POST(request: Request) {
     await spotifyPlayForUser(playerId, uri, deviceId);
     return NextResponse.json({ status: 'playing', uri, deviceId });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message ?? 'Spotify play command failed' }, { status: 500 });
+    const message = error.message ?? 'Spotify play command failed';
+    const friendly = message.includes('No active device found')
+      ? 'Kein aktives Spotify-Gerät gefunden. Bitte starte Spotify auf deinem Gerät oder wähle ein Gerät aus.'
+      : message;
+    const status = message.includes('No active device found') ? 400 : 500;
+    return NextResponse.json({ error: friendly }, { status });
   }
 }

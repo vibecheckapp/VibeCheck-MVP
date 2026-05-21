@@ -58,8 +58,8 @@ create table if not exists public.votes (
   id uuid primary key default gen_random_uuid(),
   round_id uuid not null references public.rounds(id) on delete cascade,
   round_pick_id uuid not null references public.round_picks(id) on delete cascade,
-  user_id uuid not null references public.users(id) on delete cascade,
+  voter_id uuid not null references public.users(id) on delete cascade,
   score integer not null,
   created_at timestamptz not null default now(),
-  constraint votes_unique_round_pick_user unique (round_pick_id, user_id)
+  constraint votes_unique_round_pick_user unique (round_pick_id, voter_id)
 );

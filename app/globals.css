@@ -77,8 +77,101 @@ body {
   background: rgba(255, 255, 255, 0.04);
 }
 
-.card-row h2 {
+.card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.card-row h2,
+.card h2,
+.card h3 {
   margin: 0 0 0.75rem;
+}
+
+.song-card {
+  display: grid;
+  gap: 1rem;
+  align-items: center;
+}
+
+.song-card img.cover {
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  margin-bottom: 1rem;
+}
+
+.song-card button.button {
+  width: min(220px, 100%);
+}
+
+.round-title {
+  font-size: clamp(3.5rem, 5vw, 5.5rem);
+  margin-bottom: 1rem;
+}
+
+.rating-card {
+  margin-top: 1rem;
+}
+
+.rating-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(44px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.star-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.star-button:hover,
+.star-button:focus {
+  color: #1db954;
+  border-color: #1db954;
+  transform: translateY(-1px);
+}
+
+.star-button.selected {
+  color: #1db954;
+  border-color: #1db954;
+}
+
+.error-message,
+.success-message,
+.hint {
+  margin-top: 0.75rem;
+}
+
+.error-message {
+  color: #ff6961;
+}
+
+.success-message {
+  color: #1db954;
+}
+
+.hint {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+@media (max-width: 720px) {
+  .card-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .card-row ul {

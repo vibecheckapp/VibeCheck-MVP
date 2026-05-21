@@ -10,23 +10,48 @@ export async function POST(request: Request) {
   }
 
   const supabaseAdmin = getSupabaseAdmin();
-  const { data: vote, error: voteError } = await supabaseAdmin
+  const { data: existingVote, error: existingVoteError } = await supabaseAdmin
     .from('votes')
-    .upsert(
-      {
+    .select('id')
+    .eq('round_pick_id', roundPickId)
+    .eq('voter_id', userId)
+    .maybeSingle();
+
+  if (existingVoteError) {
+    return NextResponse.json({ error: existingVoteError.message ?? 'Failed to check existing vote' }, { status: 500 });
+  }
+
+  let vote, voteError;
+
+  if (existingVote?.id) {
+    const result = await supabaseAdmin
+      .from('votes')
+      .update({ score, created_at: new Date().toISOString() })
+      .eq('id', existingVote.id)
+      .select('*')
+      .single();
+
+    vote = result.data;
+    voteError = result.error;
+  } else {
+    const result = await supabaseAdmin
+      .from('votes')
+      .insert({
         round_id: roundId,
         round_pick_id: roundPickId,
-        user_id: userId,
+        voter_id: userId,
         score,
         created_at: new Date().toISOString(),
-      },
-      { onConflict: 'round_pick_id,user_id', ignoreDuplicates: false }
-    )
-    .select('*')
-    .single();
+      })
+      .select('*')
+      .single();
+
+    vote = result.data;
+    voteError = result.error;
+  }
 
   if (voteError || !vote) {
-    return NextResponse.json({ error: 'Failed to save vote' }, { status: 500 });
+    return NextResponse.json({ error: voteError?.message || 'Failed to save vote' }, { status: 500 });
   }
 
   const { data: summary, error: summaryError } = await supabaseAdmin

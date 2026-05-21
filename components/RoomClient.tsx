@@ -74,6 +74,8 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [nextError, setNextError] = useState<string | null>(null);
   const [roundError, setRoundError] = useState<string | null>(null);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [showLobbyAfterRound, setShowLobbyAfterRound] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -150,12 +152,16 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
   const allSpotifyConnected = players.length > 0 && players.every((player) => player.spotify_connected);
   const isHost = currentPlayer?.id && room?.host_id ? currentPlayer.id === room.host_id : false;
   const canStartRound = isHost && allSpotifyConnected && !!scenario.trim() && !room?.active_round_id;
+  const isPlayingRound = !!room?.active_round_id && !showLobbyAfterRound;
   const currentPick = roundState?.current_pick;
   const canVote = !!currentPlayer && roundState?.status === 'playing' && !!currentPick;
   const hasVoted = roundState?.user_vote != null;
   const allVotesReady = roundState ? roundState.votes_cast >= roundState.votes_needed : false;
   const canNext = isHost && roundState?.status === 'playing' && allVotesReady;
   const playerCanControl = currentPlayer?.id === currentPick?.user_id || isHost;
+  const spotifyDeviceHint = playbackError?.includes('Kein aktives Spotify-Gerät gefunden')
+    ? 'Start Spotify auf deinem Gerät und wähle es im Geräte-Menü aus (Desktop, Web Player oder Mobilgerät).'
+    : null;
 
   const handleStartRound = async () => {
     if (!room?.id || !currentPlayer?.id) return;
@@ -272,24 +278,24 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
   const handlePlayPause = async () => {
     if (!playerCanControl || !currentPlayer?.id || !currentPick) return;
     setPlaybackBusy(true);
+    setPlaybackError(null);
+
     try {
-      if (isPlaying) {
-        await fetch('/api/spotify/pause', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId: currentPlayer.id }),
-        });
-        setIsPlaying(false);
-      } else {
-        await fetch('/api/spotify/play', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId: currentPlayer.id, uri: currentPick.uri }),
-        });
-        setIsPlaying(true);
+      const response = await fetch(isPlaying ? '/api/spotify/pause' : '/api/spotify/play', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isPlaying ? { playerId: currentPlayer.id } : { playerId: currentPlayer.id, uri: currentPick.uri }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setPlaybackError(data.error || 'Fehler beim Steuern der Wiedergabe.');
+        return;
       }
-    } catch {
-      // ignore individual playback errors for now
+
+      setIsPlaying(!isPlaying);
+    } catch (error: any) {
+      setPlaybackError(error?.message ?? 'Fehler beim Steuern der Wiedergabe.');
     } finally {
       setPlaybackBusy(false);
     }
@@ -297,6 +303,10 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
 
   const handleLeaveRoom = () => {
     router.push('/room/enter');
+  };
+
+  const handleReturnToLobby = () => {
+    setShowLobbyAfterRound(true);
   };
 
   const handleDeleteRoom = async () => {
@@ -323,10 +333,14 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
 
   return (
     <section className="hero">
-      <h1>Game Lobby: {roomCode}</h1>
-      <div className="card-row">
-        <div className="card">
-          <h2>Players</h2>
+      <h1 className={roundState?.scenario ? 'round-title' : ''}>
+        {roundState?.scenario && isPlayingRound ? roundState.scenario : `Game Lobby: ${roomCode}`}
+      </h1>
+      {(!isPlayingRound || showLobbyAfterRound) ? (
+        <>
+          <div className="card-row">
+            <div className="card">
+              <h2>Players</h2>
           <ul>
             {players.length > 0 ? (
               players.map((player) => (
@@ -371,14 +385,15 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
         <p className="warning">Bitte trete über Create oder Join bei. Dein Name wird dann gespeichert.</p>
       )}
 
-      {!roundState && room?.active_round_id ? <p>Lade Rundendaten...</p> : null}
+      {!roundState && room?.active_round_id && !showLobbyAfterRound ? <p>Lade Rundendaten...</p> : null}
+      {showLobbyAfterRound && roundState?.status === 'finished' ? <p className="success-message">Round finished — you are back in the lobby.</p> : null}
       {roundError ? <p className="error-message">{roundError}</p> : null}
 
       <div className="actions">
         {!room?.active_round_id ? (
           <>
             <button type="button" className="button" disabled={!canStartRound || isStarting} onClick={handleStartRound}>
-              {isStarting ? 'Startet …' : 'Runde starten'}
+              {isStarting ? 'Starting …' : 'Start Round'}
             </button>
             {startError ? <p className="error-message">{startError}</p> : null}
             {currentPlayer && !isHost ? <p className="hint">Nur der Host kann die Runde starten.</p> : null}
@@ -386,8 +401,10 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
           </>
         ) : null}
       </div>
+      </>
+      ) : null}
 
-      {roundState ? (
+      {roundState && !showLobbyAfterRound ? (
         <section className="card">
           <h2>{roundState.scenario}</h2>
           {roundState.status === 'finished' ? (
@@ -408,11 +425,16 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
               </ul>
               <div className="actions">
                 <button type="button" className="button" onClick={handleLeaveRoom}>
-                  Raum verlassen
+                  Leave Room
                 </button>
                 {isHost ? (
+                  <button type="button" className="button" onClick={handleReturnToLobby}>
+                    Return to Lobby
+                  </button>
+                ) : null}
+                {isHost ? (
                   <button type="button" className="button danger" disabled={isDeleting} onClick={handleDeleteRoom}>
-                    {isDeleting ? 'Lösche Raum …' : 'Raum auflösen'}
+                    {isDeleting ? 'Disbanding …' : 'Disband Room'}
                   </button>
                 ) : null}
               </div>
@@ -423,39 +445,45 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
             <>
               <p>Aktueller Spieler: <strong>{currentPick?.user_name ?? 'Lädt …'}</strong></p>
               {currentPick ? (
-                <div className="card-row">
-                  <div className="card">
+                <>
+                  <div className="song-card">
                     {currentPick.cover_url ? <img src={currentPick.cover_url} alt={currentPick.track_name} className="cover" /> : null}
-                    <h3>{currentPick.track_name}</h3>
-                    <p>{currentPick.artist_names}</p>
-                    <p>{currentPick.album_name}</p>
+                    <div>
+                      <h3>{currentPick.track_name}</h3>
+                      <p>{currentPick.artist_names}</p>
+                    </div>
                     <button type="button" className="button" disabled={!playerCanControl || playbackBusy} onClick={handlePlayPause}>
                       {isPlaying ? 'Pause' : 'Play'}
                     </button>
-                    {!playerCanControl ? <p className="hint">Nur der Host und der angezeigte Spieler können steuern.</p> : null}
+                    {playbackError ? <>
+                      <p className="error-message">{playbackError}</p>
+                      {spotifyDeviceHint ? <p className="hint">{spotifyDeviceHint}</p> : null}
+                    </> : null}
+                    {!playerCanControl ? <p className="hint">Only the host and current player can control playback.</p> : null}
                   </div>
-                  <div className="card">
+                  <div className="rating-card card">
                     <h3>Bewertung</h3>
                     <div className="rating-row">
                       {scoreButtons.map((score) => (
                         <button
                           key={score}
                           type="button"
-                          className={`button small ${voteScore === score ? 'selected' : ''}`}
+                          className={`star-button ${voteScore !== null && score <= voteScore ? 'selected' : ''}`}
                           onClick={() => setVoteScore(score)}
+                          aria-label={`Bewertung ${score} von 5`}
                         >
-                          {score} ★
+                          ★
                         </button>
                       ))}
                     </div>
                     <button type="button" className="button" disabled={!canVote || voteScore === null || hasVoted} onClick={handleVoteSubmit}>
-                      {hasVoted ? 'Abgestimmt' : 'Stimme bestätigen'}
+                      {hasVoted ? 'Voted' : 'Confirm'}
                     </button>
                     {voteError ? <p className="error-message">{voteError}</p> : null}
                     {voteSuccess ? <p className="success-message">{voteSuccess}</p> : null}
                     <p>{roundState.votes_cast}/{roundState.votes_needed} Stimmen abgegeben</p>
                   </div>
-                </div>
+                </>
               ) : (
                 <p>Lade den nächsten Song …</p>
               )}
