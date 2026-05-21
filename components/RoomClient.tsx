@@ -341,49 +341,67 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
           <div className="card-row">
             <div className="card">
               <h2>Players</h2>
-          <ul>
-            {players.length > 0 ? (
-              players.map((player) => (
-                <li key={player.id}>
-                  {player.name} {player.id === currentPlayer?.id ? '(du)' : null}
-                  {player.spotify_connected ? ' · Spotify verbunden' : ' · Spotify nicht verbunden'}
-                </li>
-              ))
-            ) : (
-              <li>Warte auf Spieler...</li>
-            )}
-          </ul>
-        </div>
-        <div className="card">
-          <h2>Spotify</h2>
-          <button type="button" className="button" onClick={handleConnectSpotify} disabled={!savedPlayerId || currentPlayer?.spotify_connected}>
-            {currentPlayer?.spotify_connected ? 'Spotify verbunden' : 'Connect Spotify'}
-          </button>
-          {!savedPlayerId ? <p>Zum Spotify-Connect musst du zuerst mit einem Namen beitreten.</p> : null}
-        </div>
-      </div>
-
-      {currentPlayer ? (
-        <div className="room-summary">
-          <p>Du bist angemeldet als <strong>{currentPlayer.name}</strong>.</p>
-          {isHost && !room?.active_round_id ? (
-            <div className="card">
-              <label>
-                Titel der Runde:
-                <input
-                  type="text"
-                  className="input"
-                  value={scenario}
-                  onChange={(event) => setScenario(event.target.value)}
-                  placeholder="z. B. Gute Laune Party"
-                />
-              </label>
+              {players.length > 0 ? (
+                <div className="players-grid">
+                  {players.map((player) => {
+                    const isMe = player.id === currentPlayer?.id;
+                    const hasSpotify = player.spotify_connected;
+                    
+                    return (
+                      <div key={player.id} className={`player-card ${isMe ? 'is-me' : ''}`}>
+                        <span className="player-name">
+                          {player.name}
+                          {isMe && <span style={{ opacity: 0.6, fontSize: '0.8rem' }}> (du)</span>}
+                        </span>
+                        <div className={`spotify-status-icon ${hasSpotify ? 'connected' : 'disconnected'}`}>
+                          {hasSpotify ? (
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                              <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.893-.982-.336.075-.668-.135-.744-.47-.077-.337.135-.668.47-.745 3.856-.88 7.15-.51 9.82.124.296.18.387.563.207.866zm1.224-2.724c-.226.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.08-1.182-.413.125-.847-.107-.972-.52-.125-.413.108-.847.52-.972 3.67-1.114 8.243-.574 11.35 1.335.366.226.486.706.257 1.08zM17.91 11.416c-3.262-1.937-8.644-2.115-11.75-1.173-.5.15-.1.916-.15.414-.15-.5.103-.918.414-1.07 3.585-1.087 9.53-.884 13.29 1.347.45.267.6.848.333 1.3-.267.45-.848.6-1.3.332z"/>
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M9 18V5l12-2v13"></path>
+                              <circle cx="6" cy="18" r="3"></circle>
+                              <circle cx="18" cy="16" r="3"></circle>
+                              <line x1="3" y1="3" x2="21" y2="21"></line>
+                            </svg>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="hint">Warte auf Spieler...</p>
+              )}
             </div>
-          ) : null}
-        </div>
-      ) : (
-        <p className="warning">Bitte trete über Create oder Join bei. Dein Name wird dann gespeichert.</p>
-      )}
+            <div className="card">
+              <h2>Spotify</h2>
+              <button type="button" className="button" onClick={handleConnectSpotify} disabled={!savedPlayerId || currentPlayer?.spotify_connected}>
+                {currentPlayer?.spotify_connected ? 'Spotify verbunden' : 'Connect Spotify'}
+              </button>
+              {!savedPlayerId ? <p>Zum Spotify-Connect musst du zuerst mit einem Namen beitreten.</p> : null}
+            </div>
+          </div>
+
+          {currentPlayer ? (
+            <div className="room-summary">
+              {isHost && !room?.active_round_id ? (
+                <div className="settings-box">
+                  <label htmlFor="round-title">Szenario:</label>
+                  <input
+                    id="round-title"
+                    type="text"
+                    value={scenario}
+                    onChange={(event) => setScenario(event.target.value)}
+                    placeholder="z. B. Gute Laune Party"
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="warning">Bitte trete über Create oder Join bei. Dein Name wird dann gespeichert.</p>
+          )}
 
       {!roundState && room?.active_round_id && !showLobbyAfterRound ? <p>Lade Rundendaten...</p> : null}
       {showLobbyAfterRound && roundState?.status === 'finished' ? <p className="success-message">Round finished — you are back in the lobby.</p> : null}
