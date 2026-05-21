@@ -333,9 +333,6 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
 
   return (
     <section className="hero">
-      <h1 className={roundState?.scenario ? 'round-title' : ''}>
-        {roundState?.scenario && isPlayingRound ? roundState.scenario : `Code: ${roomCode}`}
-      </h1>
       {(!isPlayingRound || showLobbyAfterRound) ? (
         <>
           <div className="card-row">
@@ -403,104 +400,157 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
             <p className="warning">Bitte trete über Create oder Join bei. Dein Name wird dann gespeichert.</p>
           )}
 
-      {!roundState && room?.active_round_id && !showLobbyAfterRound ? <p>Lade Rundendaten...</p> : null}
-      {showLobbyAfterRound && roundState?.status === 'finished' ? <p className="success-message">Round finished — you are back in the lobby.</p> : null}
-      {roundError ? <p className="error-message">{roundError}</p> : null}
+          {!roundState && room?.active_round_id && !showLobbyAfterRound ? <p>Lade Rundendaten...</p> : null}
+          {showLobbyAfterRound && roundState?.status === 'finished' ? <p className="success-message">Round finished — you are back in the lobby.</p> : null}
+          {roundError ? <p className="error-message">{roundError}</p> : null}
 
-      <div className="actions">
-        {!room?.active_round_id ? (
-          <>
-            <button type="button" className="button" disabled={!canStartRound || isStarting} onClick={handleStartRound}>
-              {isStarting ? 'Starting …' : 'Start Round'}
-            </button>
-            {startError ? <p className="error-message">{startError}</p> : null}
-            {currentPlayer && !isHost ? <p className="hint">Nur der Host kann die Runde starten.</p> : null}
-            {currentPlayer && isHost && !allSpotifyConnected ? <p className="hint">Alle Spieler müssen Spotify verbinden, bevor gestartet werden kann.</p> : null}
-          </>
-        ) : null}
-      </div>
-      </>
+          <div className="actions">
+            {!room?.active_round_id ? (
+              <>
+                <button type="button" className="button" disabled={!canStartRound || isStarting} onClick={handleStartRound}>
+                  {isStarting ? 'Starting …' : 'Start Round'}
+                </button>
+                {startError ? <p className="error-message">{startError}</p> : null}
+                {currentPlayer && !isHost ? <p className="hint">Nur der Host kann die Runde starten.</p> : null}
+                {currentPlayer && isHost && !allSpotifyConnected ? <p className="hint">Alle Spieler müssen Spotify verbinden, bevor gestartet werden kann.</p> : null}
+              </>
+            ) : null}
+          </div>
+        </>
       ) : null}
 
       {roundState && !showLobbyAfterRound ? (
-        <section className="card">
-          <h2>{roundState.scenario}</h2>
+        <section className="round-hero">
+          {/* Das Szenario wird hier zentral als einzige Hauptüberschrift gerendert */}
+          <h1 className="round-title-centered">{roundState.scenario}</h1>
+
           {roundState.status === 'finished' ? (
-            <>
-              <p>Die Runde ist beendet. Hier ist das Scoreboard:</p>
-              <ul>
+            <div className="round-hero">
+              <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.25rem' }}>Runde beendet</h2>
+              <p className="hint" style={{ marginBottom: '1rem' }}>Hier ist das Endergebnis:</p>
+              
+              <div className="scoreboard-container">
                 {roundState.scoreboard.length > 0 ? (
                   roundState.scoreboard
                     .sort((a, b) => b.score_total - a.score_total)
-                    .map((row) => (
-                      <li key={row.id}>
-                        <strong>{row.user_name}</strong>: {row.track_name} ({row.artist_names}) — {row.score_total} Punkte aus {row.vote_count} Stimmen
-                      </li>
-                    ))
+                    .map((row, index) => {
+                      const rank = index + 1;
+                      // Dynamische Klasse für die Top 3 Verzierungen
+                      const rankClass = rank <= 3 ? `rank-${rank}` : '';
+
+                      return (
+                        <div key={row.id} className={`scoreboard-row-card ${rankClass}`}>
+                          {/* Platzierung */}
+                          <div className="score-rank">
+                            {rank === 1 ? '👑' : rank}
+                          </div>
+
+                          {/* Song Cover */}
+                          {row.cover_url && (
+                            <img src={row.cover_url} alt={row.track_name} className="score-cover" />
+                          )}
+
+                          {/* Infos über Spieler & Song */}
+                          <div className="score-info">
+                            <span className="score-player-name">{row.user_name}</span>
+                            <span className="score-track-details">
+                              {row.track_name} • {row.artist_names}
+                            </span>
+                          </div>
+
+                          {/* Punkteauswertung ganz rechts */}
+                          <div className="score-points-box">
+                            <span className="score-total-pts">{row.score_total} </span>
+                            <span className="score-vote-count">{row.vote_count} Votes</span>
+                          </div>
+                        </div>
+                      );
+                    })
                 ) : (
-                  <li>Keine Ergebnisse verfügbar.</li>
+                  <div className="scoreboard-row-card">
+                    <p className="hint" style={{ margin: 0 }}>Keine Ergebnisse verfügbar.</p>
+                  </div>
                 )}
-              </ul>
-              <div className="actions">
-                <button type="button" className="button" onClick={handleLeaveRoom}>
-                  Home
+              </div>
+
+              <div className="actions" style={{ width: '100%', maxWidth: '480px', marginTop: '1.5rem' }}>
+                <button type="button" className="button" style={{ width: '100%' }} onClick={handleLeaveRoom}>
+                  Leave
                 </button>
               </div>
-              {deleteError ? <p className="error-message">{deleteError}</p> : null}
-              {deleteSuccess ? <p className="success-message">{deleteSuccess}</p> : null}
-            </>
+            </div>
           ) : (
             <>
-              <p>Player: <strong>{currentPick?.user_name ?? 'Lädt …'}</strong></p>
-              {currentPick ? (
-                <>
-                  <div className="song-card">
-                    {currentPick.cover_url ? <img src={currentPick.cover_url} alt={currentPick.track_name} className="cover" /> : null}
-                    <div>
+              <div className="track-card scenario-2">
+                <p className="player-display">
+                  Player: <strong>{currentPick?.user_name ?? 'Lädt …'}</strong>
+                </p>
+                
+                {currentPick ? (
+                  <div className="track-stack">
+                    {currentPick.cover_url && (
+                      <img src={currentPick.cover_url} alt={currentPick.track_name} className="cover-img-large" />
+                    )}
+                    
+                    <div className="track-text-stacked">
                       <h3>{currentPick.track_name}</h3>
-                      <p>{currentPick.artist_names}</p>
+                      <p className="artist-name">{currentPick.artist_names}</p>
                     </div>
-                    <button type="button" className="button" disabled={!playerCanControl || playbackBusy} onClick={handlePlayPause}>
-                      {isPlaying ? 'Pause' : 'Play'}
-                    </button>
-                    {playbackError ? <>
-                      <p className="error-message">{playbackError}</p>
-                      {spotifyDeviceHint ? <p className="hint">{spotifyDeviceHint}</p> : null}
-                    </> : null}
-                    {!playerCanControl ? <p className="hint">Only the host and current player can control playback.</p> : null}
                   </div>
-                  <div className="rating-card card">
-                    <h3>Bewertung</h3>
-                    <div className="rating-row">
-                      {scoreButtons.map((score) => (
-                        <button
-                          key={score}
-                          type="button"
-                          className={`star-button ${voteScore !== null && score <= voteScore ? 'selected' : ''}`}
-                          onClick={() => setVoteScore(score)}
-                          aria-label={`Bewertung ${score} von 5`}
-                        >
-                          ★
-                        </button>
-                      ))}
-                    </div>
-                    <button type="button" className="button" disabled={!canVote || voteScore === null || hasVoted} onClick={handleVoteSubmit}>
-                      {hasVoted ? 'Voted' : 'Confirm'}
-                    </button>
-                    {voteError ? <p className="error-message">{voteError}</p> : null}
-                    {voteSuccess ? <p className="success-message">{voteSuccess}</p> : null}
-                    <p>{roundState.votes_cast}/{roundState.votes_needed} Stimmen abgegeben</p>
+                ) : (
+                  <p>Lade den nächsten Song …</p>
+                )}
+
+                <button type="button" className="button play-button" disabled={!playerCanControl || playbackBusy} onClick={handlePlayPause}>
+                  {isPlaying ? 'Pause' : 'Play'}
+                </button>
+                
+                {playbackError && <p className="error-message">{playbackError}</p>}
+              </div>
+
+              {/* Die Bewertungs-Box mit den neuen Styles */}
+              <div className="card rating-box-card">
+                <div className="rating-row">
+                  <div className="stars-wrapper">
+                    {scoreButtons.map((score) => (
+                      <button
+                        key={score}
+                        type="button"
+                        className={`star-button ${voteScore !== null && score <= voteScore ? 'selected' : ''}`}
+                        onClick={() => setVoteScore(score)}
+                        aria-label={`Bewertung ${score} von 5`}
+                      >
+                        ★
+                      </button>
+                    ))}
                   </div>
-                </>
-              ) : (
-                <p>Lade den nächsten Song …</p>
-              )}
-              <div className="actions">
-                <button type="button" className="button" disabled={!canNext} onClick={handleNextPlayer}>
+                  
+                  {/* OPTIMIERT: Passt perfekt zum neuen global.css-Klassen-Setup und fängt erst bei 'hasVoted' unaufdringlich an grün zu leuchten */}
+                  <button 
+                    type="button" 
+                    className={`submit-vote-button ${hasVoted ? 'voted' : ''}`} 
+                    disabled={!canVote || voteScore === null || hasVoted} 
+                    onClick={handleVoteSubmit}
+                    aria-label="Stimme abgeben"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="vote-status-container">
+                  {voteSuccess && <span className="success-message-compact">{voteSuccess}</span>}
+                  {voteError && <span className="error-message-compact">{voteError}</span>}
+                  <span className="vote-count-compact">Votes: {roundState.votes_cast}/{roundState.votes_needed}</span>
+                </div>
+              </div>
+
+              <div className="actions bottom-actions">
+                <button type="button" className="button next-button" disabled={!canNext} onClick={handleNextPlayer}>
                   Next Player
                 </button>
-                {nextError ? <p className="error-message">{nextError}</p> : null}
-                {!canNext ? <p className="hint">Der Host sollte warten, bis alle Spieler abgestimmt haben.</p> : null}
+                {!canNext && <p className="hint">Der Host sollte warten, bis alle Spieler abgestimmt haben.</p>}
               </div>
             </>
           )}

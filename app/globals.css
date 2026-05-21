@@ -393,3 +393,342 @@ body::after {
 .spotify-status-icon.disconnected {
   color: rgba(255, 255, 255, 0.2);
 }
+
+
+/* Zentrierte Überschrift fürs Szenario */
+.round-title-centered {
+  text-align: center;
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 0 0 0.5rem 0;
+  width: 100%;
+}
+
+.round-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem; /* Engere Abstände zwischen den Kacheln */
+  align-items: center;
+  width: 100%;
+}
+
+/* Track Card weiter an den Rand gezogen */
+.track-card.scenario-2 {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 1.25rem;
+  width: 100%;
+  max-width: 440px; /* Breiter für weniger Rand-Abstand */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Kleinerer Abstand unter dem Playernamen */
+.player-display {
+  font-size: 1rem;
+  opacity: 0.7;
+  margin: 0 0 0.75rem 0; /* Margin verkleinert */
+  text-align: center;
+}
+
+.track-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem; /* Weniger Abstand zwischen Cover und Text */
+  width: 100%;
+}
+
+.cover-img-large {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+/* Kleinerer Abstand zum Play-Button */
+.track-text-stacked {
+  text-align: center;
+  margin: 0.5rem 0 0.75rem 0; /* Margin verkleinert */
+}
+
+.track-text-stacked h3 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0 0 0.15rem 0;
+}
+
+.artist-name {
+  font-size: 0.95rem;
+  opacity: 0.6;
+  margin: 0;
+}
+
+.play-button {
+  width: 100%;
+  border-radius: 50px;
+}
+
+/* Bewertungs-Box breiter und kompakter */
+.card.rating-box-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 1rem 1.25rem;
+  width: 100%;
+  max-width: 440px;
+  box-sizing: border-box;
+}
+
+.rating-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.stars-wrapper {
+  display: flex;
+  gap: 0.25rem;
+  flex-grow: 1;
+  justify-content: space-around;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Kompakte Status-Zeile für Text und Votes */
+.vote-status-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.success-message-compact {
+  color: #1db954;
+  font-weight: 500;
+}
+
+.error-message-compact {
+  color: #ff4a4a;
+  font-weight: 500;
+}
+
+.vote-count-compact {
+  opacity: 0.5;
+  margin-left: auto; /* Schiebt die Votes immer nach rechts */
+}
+
+/* Next Player */
+.bottom-actions {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.next-button {
+  width: 100%;
+  border-radius: 50px;
+  background-color: #1db954 !important;
+  color: white;
+  font-weight: 600;
+}
+
+
+/* --- NEU: Optimierte Sterne & Haken-Design --- */
+
+/* Die einzelnen Buttons in der Sternen-Leiste */
+.stars-wrapper .star-button {
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 0;
+  margin: 0;
+  width: auto;
+  height: auto;
+  aspect-ratio: auto;
+  font-size: clamp(1.5rem, 5vw, 2.2rem); /* Sterne deutlich präsenter */
+  color: rgba(255, 255, 255, 0.15); /* Dezentes, edles Dunkellila/Grau im Standard */
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease, filter 0.2s ease;
+  cursor: pointer;
+}
+
+/* Hover-Effekt für die Sterne */
+.stars-wrapper .star-button:hover {
+  transform: scale(1.15) rotate(4deg);
+  color: #a855f7; /* Schickes Violett beim Hovern, passend zur Lobby */
+}
+
+/* Wenn ein Stern ausgewählt ist */
+.stars-wrapper .star-button.selected {
+  color: #ffb800; /* Warmes, sattes Goldgelb */
+  filter: drop-shadow(0 0 8px rgba(255, 184, 0, 0.35));
+}
+
+/* Der Bestätigungshaken (Checkbox/Button daneben) */
+.submit-vote-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  width: 48px;  /* Schön groß und griffig */
+  height: 48px;
+  min-width: 48px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.3); /* Unauffällig im inaktiven Zustand */
+  transition: all 0.2s ease;
+}
+
+/* Hover-Effekt für den Haken */
+.submit-vote-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Wenn die Bewertung abgegeben wurde (aktiviert) */
+.submit-vote-button.voted {
+  background: rgba(29, 185, 84, 0.1);
+  border-color: rgba(29, 185, 84, 0.4);
+  color: #1db954; /* Leuchtet erst grün, wenn geklickt/abgestimmt wurde */
+  filter: drop-shadow(0 0 8px rgba(29, 185, 84, 0.3));
+}
+
+/* SVG Icon innerhalb des Hakens anpassen */
+.submit-vote-button svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 2.5px; /* Macht den Haken etwas dicker und moderner */
+}
+
+
+/* --- NEU: Modernes Musik-Scoreboard Design --- */
+
+.scoreboard-container {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.scoreboard-row-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+/* Hover-Effekt für die Zeilen */
+.scoreboard-row-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Platzierungs-Abzeichen (Rank) */
+.score-rank {
+  font-size: 1.5rem;
+  font-weight: 900;
+  min-width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Spezial-Styles für die Top 3 */
+.scoreboard-row-card.rank-1 {
+  background: linear-gradient(135deg, rgba(255, 184, 0, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%);
+  border-color: rgba(255, 184, 0, 0.3);
+  box-shadow: 0 10px 30px rgba(255, 184, 0, 0.05);
+}
+.scoreboard-row-card.rank-1 .score-rank {
+  background: #ffb800;
+  color: #13042b;
+  filter: drop-shadow(0 0 8px rgba(255, 184, 0, 0.4));
+}
+
+.scoreboard-row-card.rank-2 .score-rank {
+  background: #cbd5e1;
+  color: #13042b;
+}
+
+.scoreboard-row-card.rank-3 .score-rank {
+  background: #b45309;
+  color: #fff;
+}
+
+/* Song-Miniatur */
+.score-cover {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Text-Bereich */
+.score-info {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0; /* Verhindert Text-Overflow */
+}
+
+.score-player-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.score-track-details {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-transform: capitalize;
+  text-overflow: ellipsis;
+}
+
+/* Punkte-Anzeige rechts */
+.score-points-box {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.score-total-pts {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1db954; /* Im schönen Spotify-Grün */
+}
+
+.score-vote-count {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+}
