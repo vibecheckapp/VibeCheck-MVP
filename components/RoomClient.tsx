@@ -334,7 +334,7 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
   return (
     <section className="hero">
       <h1 className={roundState?.scenario ? 'round-title' : ''}>
-        {roundState?.scenario && isPlayingRound ? roundState.scenario : `Game Lobby: ${roomCode}`}
+        {roundState?.scenario && isPlayingRound ? roundState.scenario : `Code: ${roomCode}`}
       </h1>
       {(!isPlayingRound || showLobbyAfterRound) ? (
         <>
