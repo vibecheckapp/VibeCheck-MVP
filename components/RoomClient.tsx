@@ -333,6 +333,14 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
 
   return (
     <section className="hero">
+
+      {/* HIER WIRD ES GEÄNDERT: Trennt die Logik strikt zwischen Lobby und laufender Runde */}
+      {!isPlayingRound ? (
+        <h1 style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          Code: {roomCode}
+        </h1>
+      ) : null}
+      
       {(!isPlayingRound || showLobbyAfterRound) ? (
         <>
           <div className="card-row">
