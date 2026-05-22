@@ -34,11 +34,11 @@ export async function POST(request: Request) {
   }
 
   if (room.active_round_id) {
-    return NextResponse.json({ error: 'Es läuft bereits eine Runde im Raum' }, { status: 400 });
+    return NextResponse.json({ error: 'A round is already running in this room' }, { status: 400 });
   }
 
   if (room.host_id !== playerId) {
-    return NextResponse.json({ error: 'Nur der Host kann die Runde starten' }, { status: 403 });
+    return NextResponse.json({ error: 'Only the host can start the round' }, { status: 403 });
   }
 
   const { data: roomPlayers, error: roomPlayersError } = await supabaseAdmin
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
   const notConnected = (roomPlayers ?? []).filter((entry: any) => !entry.users?.spotify_refresh_token);
   if (notConnected.length > 0) {
-    return NextResponse.json({ error: 'Nicht alle Spieler sind mit Spotify verbunden' }, { status: 400 });
+    return NextResponse.json({ error: 'Not all players are connected to Spotify' }, { status: 400 });
   }
 
   const playerOrder = shuffleArray((roomPlayers ?? []).map((entry: any) => entry.user_id));
@@ -68,11 +68,11 @@ export async function POST(request: Request) {
   try {
     track = await getRandomTrackForUser(firstPlayerId);
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message || 'Spotify-Titel konnten nicht geladen werden' }, { status: 500 });
+    return NextResponse.json({ error: (error as Error).message || 'Failed to load Spotify track' }, { status: 500 });
   }
 
   if (!track?.id || !track?.uri) {
-    return NextResponse.json({ error: 'Ungültiger Spotify-Track für den ersten Spieler' }, { status: 500 });
+    return NextResponse.json({ error: 'Invalid Spotify track for first player' }, { status: 500 });
   }
 
   const { data: round, error: roundInsertError } = await supabaseAdmin

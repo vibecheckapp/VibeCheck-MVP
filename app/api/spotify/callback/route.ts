@@ -101,5 +101,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: roomDetailsError?.message ?? 'Room not found' }, { status: 500 });
   }
 
+  // Benachrichtigung für alle Clients dass Spotify verbunden wurde
+  await supabaseAdmin
+    .from('room_notifications')
+    .insert({ room_id: room.room_id, event_type: 'spotify_connected', triggered_by: playerId });
+
   return NextResponse.redirect(`${origin}/room/${roomDetails.room_code}?playerId=${playerId}`);
 }

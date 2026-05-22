@@ -22,7 +22,7 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
   }
 
   if (!playerId || room.host_id !== playerId) {
-    return NextResponse.json({ error: 'Nur der Host kann den Raum auflösen' }, { status: 403 });
+    return NextResponse.json({ error: 'Only the host can dissolve the room' }, { status: 403 });
   }
 
   const { error: deleteError } = await supabaseAdmin

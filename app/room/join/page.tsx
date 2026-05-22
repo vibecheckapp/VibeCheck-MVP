@@ -33,7 +33,7 @@ export default function JoinRoomPage() {
     <main className="page-shell">
       <section className="hero">
         <h1>Join a Room</h1>
-        <p>Gib den Raumcode und deinen Namen ein, um dem Raum beizutreten.</p>
+        <p>Enter room code and name to join your friends.</p>
         <form onSubmit={handleSubmit} className="entry-form">
           <input
             name="roomCode"

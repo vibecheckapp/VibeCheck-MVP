@@ -5,7 +5,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const { roundId, roundPickId, userId, score } = body;
 
-  if (!roundId || !roundPickId || !userId || typeof score !== 'number' || score < 1 || score > 5) {
+  if (!roundId || !roundPickId || !userId || typeof score !== 'number' || score < 1 || score > 10) {
     return NextResponse.json({ error: 'Invalid vote payload' }, { status: 400 });
   }
 

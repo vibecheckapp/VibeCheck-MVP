@@ -35,7 +35,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   }
 
   if (room.host_id !== playerId) {
-    return NextResponse.json({ error: 'Nur der Host kann den nächsten Spieler wählen' }, { status: 403 });
+    return NextResponse.json({ error: 'Only the host can advance to the next player' }, { status: 403 });
   }
 
   if (round.status !== 'playing') {
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     .eq('round_pick_id', round.current_pick_id);
 
   if (!force && currentVotes.data && currentVotes.data.length < totalPlayers) {
-    return NextResponse.json({ error: 'Warte auf alle Stimmen, bevor du weitermachst' }, { status: 400 });
+    return NextResponse.json({ error: 'Wait for all votes before continuing' }, { status: 400 });
   }
 
   if (round.current_pick_id) {

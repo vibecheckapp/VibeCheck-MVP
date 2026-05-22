@@ -99,7 +99,7 @@ export async function fetchUserSavedTracks(playerId: string) {
 
   // 1. zuerst total Anzahl holen
   const firstPage = await fetch(
-    "https://api.spotify.com/v1/me/tracks?limit=1",
+    'https://api.spotify.com/v1/me/tracks?limit=1',
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -108,7 +108,7 @@ export async function fetchUserSavedTracks(playerId: string) {
   );
 
   if (!firstPage.ok) {
-    throw new Error("Failed to fetch saved tracks (count)");
+    throw new Error('Failed to fetch saved tracks (count)');
   }
 
   const firstData = await firstPage.json();
@@ -130,14 +130,14 @@ export async function fetchUserSavedTracks(playerId: string) {
   );
 
   if (!response.ok) {
-    throw new Error("Failed to fetch saved tracks from Spotify");
+    throw new Error('Failed to fetch saved tracks from Spotify');
   }
 
   const data = await response.json();
 
   return (data.items ?? [])
     .map((item: any) => item.track)
-    .filter(Boolean);
+    .filter((track: any) => track && track.album?.images?.length > 0);
 }
 
 export async function getRandomTrackForUser(playerId: string) {
@@ -146,14 +146,19 @@ export async function getRandomTrackForUser(playerId: string) {
     throw new Error('Keine Spotify-Titel gefunden. Bitte speichere Lieblingssongs oder gib Spotify Zugriff.');
   }
 
-  const track = savedTracks[Math.floor(Math.random() * savedTracks.length)];
+  const validTracks = savedTracks.filter((track: any) => track.album?.images?.[0]?.url);
+  if (!validTracks.length) {
+    throw new Error('Keine Spotify-Titel mit Cover gefunden.');
+  }
+
+  const track = validTracks[Math.floor(Math.random() * validTracks.length)];
   return {
     id: track.id,
     uri: track.uri,
     name: track.name,
     artist_names: track.artists?.map((artist: any) => artist.name).join(', ') ?? 'Unbekannt',
     album_name: track.album?.name ?? 'Unbekanntes Album',
-    cover_url: track.album?.images?.[0]?.url ?? '',
+    cover_url: track.album.images[0].url,
   };
 }
 

@@ -5,7 +5,7 @@ export default function HomePage() {
     <main className="page-shell">
       <section className="hero">
         <h1>Vibecheck</h1>
-        <p>Ein kurzes Multiplayer-Partyspiel mit Spotify für dich und deine Freunde.</p>
+        <p>Spotify Multiplayer-Partygame.</p>
         <div className="actions">
           <Link href="/room/enter" className="button">
             Play

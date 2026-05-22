@@ -7,7 +7,7 @@ export default function RoomEntryPage() {
     <main className="page-shell">
       <section className="hero">
         <h1>Play Vibecheck</h1>
-        <p>Wähle einen Raum, um ein Spiel zu starten oder einem bestehenden Raum beizutreten.</p>
+        <p>Create or join a room.</p>
         <div className="actions">
           <Link href="/room/create" className="button">
             Create Room

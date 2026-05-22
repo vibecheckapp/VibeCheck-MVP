@@ -32,7 +32,7 @@ export default function CreateRoomPage() {
     <main className="page-shell">
       <section className="hero">
         <h1>Create Room</h1>
-        <p>Erstelle einen Raum und gib deinen Namen ein, damit andere Spieler dich sehen können.</p>
+        <p>Enter your name and start a game lobby.</p>
         <form onSubmit={handleSubmit} className="entry-form">
           <input
             name="name"
