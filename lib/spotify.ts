@@ -1,5 +1,46 @@
 import { getSupabaseAdmin } from './supabase-server';
 
+// Helper function for retry logic with exponential backoff
+async function fetchWithRetry<T>(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3,
+  initialDelayMs = 500
+): Promise<T> {
+  let lastError: Error | null = null;
+  let delayMs = initialDelayMs;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+
+      // Retry on rate limit (429) or server errors (5xx)
+      if (response.status === 429 || response.status >= 500) {
+        console.log(`[fetchWithRetry] Attempt ${attempt + 1} failed with ${response.status}, retrying in ${delayMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        delayMs *= 2;
+        continue;
+      }
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      lastError = error as Error;
+      if (attempt < maxRetries - 1) {
+        console.log(`[fetchWithRetry] Attempt ${attempt + 1} error: ${lastError.message}, retrying in ${delayMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        delayMs *= 2;
+      }
+    }
+  }
+
+  throw lastError || new Error('Request failed after retries');
+}
+
 export async function refreshSpotifyToken(refreshToken: string) {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
@@ -94,7 +135,7 @@ export async function getSpotifyAccessTokenForUser(playerId: string) {
   return newAccessToken;
 }
 
-export async function fetchUserSavedTracks(playerId: string) {
+export async function fetchUserSavedTracks(playerId: string, excludeTrackIds: string[] = []) {
   const accessToken = await getSpotifyAccessTokenForUser(playerId);
 
   // 1. zuerst total Anzahl holen
@@ -116,42 +157,71 @@ export async function fetchUserSavedTracks(playerId: string) {
 
   if (total === 0) return [];
 
-  // 2. random offset wählen
-  const randomOffset = Math.floor(Math.random() * total);
+  // 2. Try to get tracks excluding the played ones
+  // We fetch multiple pages and filter out played tracks
+  let allTracks: any[] = [];
+  const maxPagesToFetch = Math.min(10, Math.ceil(total / 50));
+  
+  for (let page = 0; page < maxPagesToFetch && allTracks.length < 50; page++) {
+    const randomOffset = Math.floor(Math.random() * total);
+    const response = await fetch(
+      `https://api.spotify.com/v1/me/tracks?limit=50&offset=${randomOffset}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
 
-  // 3. Seite mit random offset holen
-  const response = await fetch(
-    `https://api.spotify.com/v1/me/tracks?limit=50&offset=${randomOffset}`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
+    if (!response.ok) {
+      throw new Error('Failed to fetch saved tracks from Spotify');
     }
-  );
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch saved tracks from Spotify');
+    const data = await response.json();
+    const tracks = (data.items ?? [])
+      .map((item: any) => item.track)
+      .filter((track: any) => track && track.album?.images?.length > 0);
+    
+    allTracks = [...allTracks, ...tracks];
+    
+    // If we have enough non-excluded tracks, break
+    if (allTracks.length >= 50) break;
   }
 
-  const data = await response.json();
+  // Filter out excluded track IDs if provided
+  if (excludeTrackIds.length > 0) {
+    const excludeSet = new Set(excludeTrackIds);
+    allTracks = allTracks.filter((track: any) => !excludeSet.has(track.id));
+  }
 
-  return (data.items ?? [])
-    .map((item: any) => item.track)
-    .filter((track: any) => track && track.album?.images?.length > 0);
+  // Shuffle the results
+  const shuffled = allTracks.sort(() => Math.random() - 0.5);
+  
+  // Return up to 50 tracks
+  return shuffled.slice(0, 50);
 }
 
-export async function getRandomTrackForUser(playerId: string) {
-  const savedTracks = await fetchUserSavedTracks(playerId);
-  if (!savedTracks.length) {
+export async function getRandomTrackForUser(playerId: string, excludeTrackIds: string[] = []) {
+  if (!playerId) {
+    throw new Error('playerId is required');
+  }
+  
+  const savedTracks = await fetchUserSavedTracks(playerId, excludeTrackIds);
+  if (!savedTracks || savedTracks.length === 0) {
     throw new Error('Keine Spotify-Titel gefunden. Bitte speichere Lieblingssongs oder gib Spotify Zugriff.');
   }
 
-  const validTracks = savedTracks.filter((track: any) => track.album?.images?.[0]?.url);
-  if (!validTracks.length) {
+  const validTracks = savedTracks.filter((track: any) => track && track.album?.images?.[0]?.url);
+  if (!validTracks || validTracks.length === 0) {
     throw new Error('Keine Spotify-Titel mit Cover gefunden.');
   }
 
   const track = validTracks[Math.floor(Math.random() * validTracks.length)];
+  
+  if (!track?.id || !track?.uri || !track?.name) {
+    throw new Error('Invalid track data received from Spotify');
+  }
+  
   return {
     id: track.id,
     uri: track.uri,

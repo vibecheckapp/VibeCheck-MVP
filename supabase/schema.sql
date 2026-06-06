@@ -17,9 +17,13 @@ create table if not exists public.rooms (
   id uuid primary key default gen_random_uuid(),
   room_code text not null unique,
   host_id uuid references public.users(id) on delete set null,
-  active_round_id uuid,
+  active_round_id uuid default null,
+settings jsonb DEFAULT '{"auto_advance": true, "auto_advance_delay": 10, "anonymous_voting": true}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+-- Index for efficient room lookups by room_code (heavily used in JOIN/LOOKUP routes)
+create index if not exists idx_rooms_room_code on public.rooms(room_code);
 
 create table if not exists public.room_players (
   id uuid primary key default gen_random_uuid(),
@@ -39,8 +43,10 @@ create table if not exists public.rounds (
   player_order jsonb,
   current_turn_index integer not null default 0,
   current_pick_id uuid,
+  played_track_ids text[] default '{}',
   started_at timestamptz not null default now(),
-  finished_at timestamptz
+  finished_at timestamptz,
+  paused_at timestamptz
 );
 
 create table if not exists public.round_picks (
@@ -77,6 +83,17 @@ create table if not exists public.room_notifications (
 
 -- Index for efficient cleanup of old notifications
 create index if not exists idx_room_notifications_created_at on public.room_notifications(created_at);
+
+-- Phase 3.1: Scenario suggestions table
+create table if not exists public.scenario_suggestions (
+  id uuid primary key default gen_random_uuid(),
+  room_id uuid references public.rooms(id) on delete cascade,
+  player_id uuid references public.users(id) on delete cascade,
+  suggestion text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_scenario_suggestions_room_id on public.scenario_suggestions(room_id);
 
 -- Trigger: Clean up orphan votes when round_pick is deleted directly
 create or replace function cleanup_orphan_votes()

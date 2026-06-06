@@ -29,12 +29,27 @@ export async function POST(request: Request) {
       .eq('id', roomId)
       .single();
 
-  if (roomError || !room) {
+if (roomError || !room) {
     return NextResponse.json({ error: 'Room not found' }, { status: 404 });
   }
 
+  // Check if active_round_id is valid (points to an existing round)
   if (room.active_round_id) {
-    return NextResponse.json({ error: 'A round is already running in this room' }, { status: 400 });
+    const { data: existingRound } = await supabaseAdmin
+      .from('rounds')
+      .select('id')
+      .eq('id', room.active_round_id)
+      .single();
+    
+    // If the round doesn't exist, clear the orphaned active_round_id and allow starting
+    if (!existingRound) {
+      await supabaseAdmin
+        .from('rooms')
+        .update({ active_round_id: null })
+        .eq('id', roomId);
+    } else {
+      return NextResponse.json({ error: 'A round is already running in this room' }, { status: 400 });
+    }
   }
 
   if (room.host_id !== playerId) {
@@ -61,12 +76,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No players found to start the round' }, { status: 400 });
   }
 
-  const roundId = randomUUID();
+const roundId = randomUUID();
   const firstPlayerId = playerOrder[0];
+  
+  // Fetch track with no exclusions (first round - no played tracks yet)
   let track;
-
   try {
-    track = await getRandomTrackForUser(firstPlayerId);
+    track = await getRandomTrackForUser(firstPlayerId, []);
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message || 'Failed to load Spotify track' }, { status: 500 });
   }
@@ -75,6 +91,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid Spotify track for first player' }, { status: 500 });
   }
 
+  // Create round with initial played_track_ids containing the first track
   const { data: round, error: roundInsertError } = await supabaseAdmin
     .from('rounds')
     .insert({
@@ -84,6 +101,7 @@ export async function POST(request: Request) {
       status: 'playing',
       player_order: playerOrder,
       current_turn_index: 0,
+      played_track_ids: [track.id],
       started_at: new Date().toISOString(),
     })
     .select('id')
@@ -128,22 +146,45 @@ export async function POST(request: Request) {
     .update({ current_pick_id: pickId })
     .eq('id', roundId);
 
+// Debug: Log the state before and after update
+    console.log('[StartRound] About to set room active_round_id:', roomId, '->', roundId);
+    
   const { error: roomUpdateError } = await supabaseAdmin
-    .from('rooms')
-    .update({ active_round_id: roundId })
-    .eq('id', roomId);
+      .from('rooms')
+      .update({ active_round_id: roundId })
+      .eq('id', roomId);
 
-  if (roundUpdateError || roomUpdateError) {
+  console.log('[StartRound] Room update error:', roomUpdateError);
+
+  if (roomUpdateError) {
     await supabaseAdmin.from('round_picks').delete().eq('id', pickId);
     await supabaseAdmin.from('rounds').delete().eq('id', roundId);
     return NextResponse.json(
       {
-        error: 'Failed to update round or room state',
-        details: roundUpdateError?.message ?? roomUpdateError?.message ?? 'Unknown database error',
+        error: 'Failed to update room state',
+        details: roomUpdateError?.message ?? 'Unknown database error',
       },
       { status: 500 },
     );
   }
+
+  // Verify the round was created
+  const { data: verifyRound } = await supabaseAdmin
+    .from('rounds')
+    .select('id, status')
+    .eq('id', roundId)
+    .single();
+  
+  console.log('[StartRound] Verify round exists:', verifyRound);
+
+  // Verify room was updated
+  const { data: verifyRoom } = await supabaseAdmin
+    .from('rooms')
+    .select('active_round_id')
+    .eq('id', roomId)
+    .single();
+  
+  console.log('[StartRound] Verify room active_round_id:', verifyRoom?.active_round_id);
 
   return NextResponse.json({
     round: {

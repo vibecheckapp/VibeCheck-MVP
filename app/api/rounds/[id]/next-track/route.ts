@@ -14,9 +14,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   }
 
   const supabaseAdmin = getSupabaseAdmin();
-  const { data: round, error: roundError } = await supabaseAdmin
+const { data: round, error: roundError } = await supabaseAdmin
     .from('rounds')
-    .select('id, room_id, status, player_order, current_turn_index, current_pick_id')
+    .select('id, room_id, status, player_order, current_turn_index, current_pick_id, played_track_ids')
     .eq('id', id)
     .single();
 
@@ -84,8 +84,26 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ status: 'finished' });
   }
 
-  const nextPlayerId = playerOrder[nextIndex];
-  const track = await getRandomTrackForUser(nextPlayerId);
+const nextPlayerId = playerOrder[nextIndex];
+  
+  // Get already played track IDs to exclude
+  const excludeTrackIds = round.played_track_ids ?? [];
+  
+  let track;
+  try {
+    track = await getRandomTrackForUser(nextPlayerId, excludeTrackIds);
+  } catch (trackError) {
+    return NextResponse.json({ 
+      error: trackError instanceof Error 
+        ? trackError.message 
+        : 'Failed to load Spotify track for next player' 
+    }, { status: 500 });
+  }
+  
+  if (!track?.id || !track?.uri) {
+    return NextResponse.json({ error: 'Invalid track data for next player' }, { status: 500 });
+  }
+  
   const pickId = randomUUID();
 
   const { data: newPick, error: pickError } = await supabaseAdmin
@@ -111,9 +129,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ error: 'Failed to create next round pick' }, { status: 500 });
   }
 
-  const { error: updateError } = await supabaseAdmin
+const { error: updateError } = await supabaseAdmin
     .from('rounds')
-    .update({ current_pick_id: pickId, current_turn_index: nextIndex })
+    .update({ 
+      current_pick_id: pickId, 
+      current_turn_index: nextIndex,
+      played_track_ids: [...(round.played_track_ids ?? []), track.id]
+    })
     .eq('id', id);
 
   if (updateError) {

@@ -38,18 +38,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 });
   }
 
-  const roomCode = await createUniqueRoomCode();
+  let roomCode = await createUniqueRoomCode();
+  // Normalize roomCode to uppercase for consistency
+  roomCode = roomCode.toUpperCase();
 
   const supabaseAdmin = getSupabaseAdmin();
+  console.log('[CreateRoom] Creating room with code:', roomCode);
+  
   const { data: room, error: roomError } = await supabaseAdmin
     .from('rooms')
     .insert({ room_code: roomCode })
-    .select('id')
+    .select('id, room_code')
     .single();
 
   if (roomError || !room) {
+    console.error('[CreateRoom] Failed to create room:', roomError);
     return NextResponse.json({ error: roomError?.message ?? 'Failed to create room' }, { status: 500 });
   }
+  
+  console.log('[CreateRoom] Room created successfully:', room);
 
   const userId = randomUUID();
   const { data: user, error: userError } = await supabaseAdmin

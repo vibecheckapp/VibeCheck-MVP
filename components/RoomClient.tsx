@@ -13,6 +13,7 @@ interface Player {
   id: string;
   name: string;
   spotify_connected?: boolean;
+  last_seen?: string | null;
 }
 
 interface RoundPick {
@@ -38,6 +39,13 @@ interface ScoreboardRow {
   cover_url: string;
   score_total: number;
   vote_count: number;
+  uri?: string;
+}
+
+interface RoomSettings {
+  auto_advance: boolean;
+  auto_advance_delay: number;
+  anonymous_voting: boolean;
 }
 
 interface RoundState {
@@ -51,10 +59,11 @@ interface RoundState {
   votes_needed: number;
   votes_cast: number;
   user_vote: number | null;
+  paused_at: string | null;
 }
 
 interface LookupResponse {
-  room: { id: string; room_code: string; host_id?: string | null; active_round_id?: string | null };
+  room: { id: string; room_code: string; host_id?: string | null; active_round_id?: string | null; settings?: RoomSettings | null };
   players: Player[];
   currentPlayer: Player | null;
 }
@@ -75,8 +84,63 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [nextError, setNextError] = useState<string | null>(null);
   const [roundError, setRoundError] = useState<string | null>(null);
-  const [playbackError, setPlaybackError] = useState<string | null>(null);
+const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [showLobbyAfterRound, setShowLobbyAfterRound] = useState(false);
+  // Fix #2: Transition state to prevent race conditions
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  // Back to lobby transition timer (5 seconds)
+  const [lobbyTransitionTime, setLobbyTransitionTime] = useState<number | null>(null);
+  const [isInTransition, setIsInTransition] = useState(false);
+// Player disconnect tracking
+  const [disconnectedPlayers, setDisconnectedPlayers] = useState<Set<string>>(new Set());
+  // Game pause state
+  const [isPaused, setIsPaused] = useState(false);
+  const [isPausing, setIsPausing] = useState(false);
+  // Room settings
+const [roomSettings, setRoomSettings] = useState<RoomSettings>({
+    auto_advance: true,
+    auto_advance_delay: 10,
+    anonymous_voting: true,
+  });
+  // Auto-advance timer
+  const [autoAdvanceTime, setAutoAdvanceTime] = useState<number | null>(null);
+  // Settings modal
+  const [showSettings, setShowSettings] = useState(false);
+// Custom scenarios from community
+  const [customScenarioInput, setCustomScenarioInput] = useState('');
+  const [customScenarioSent, setCustomScenarioSent] = useState(false);
+  const [customScenarios, setCustomScenarios] = useState<{ id: string; suggestion: string; player_name: string }[]>([]);
+  // Three buttons for scenario selection (replacing dropdown + input)
+  const [showPresetScenarios, setShowPresetScenarios] = useState(false);
+  const [showCustomScenarioInput, setShowCustomScenarioInput] = useState(false);
+  const [showCommunitySuggestions, setShowCommunitySuggestions] = useState(false);
+// Player has last_seen
+const [playerLastSeen, setPlayerLastSeen] = useState<Record<string, string>>({});
+// Best song playback
+  const [bestSongUri, setBestSongUri] = useState<string | null>(null);
+  const [autoPlayedBest, setAutoPlayedBest] = useState(false);
+// Auto-start lobby transition timer when scoreboard is shown
+  useEffect(() => {
+    if (roundState?.status === 'finished' && !isInTransition) {
+      // Immediately start 5-second countdown when scoreboard is displayed
+      setIsInTransition(true);
+      setLobbyTransitionTime(5);
+      
+      const timer = setInterval(() => {
+        setLobbyTransitionTime((prev) => {
+          const next = (prev ?? 1) - 1;
+          if (next <= 0) {
+            clearInterval(timer);
+            setIsInTransition(false);
+            return null;
+          }
+          return next;
+        });
+      }, 1000);
+      
+      return () => clearInterval(timer);
+    }
+  }, [roundState?.status]);
   // Unterdrückt das Lookup-Round-Sync kurzzeitig — verhindert Race zwischen
   // lokaler Round-Neuanlage (Start Game) und stale Server-active_round_id.
   const [suppressRoundSync, setSuppressRoundSync] = useState(false);
@@ -122,7 +186,7 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
       query.set('playerId', savedPlayerId);
     }
 
-    fetch(`/api/rooms/lookup?${query.toString()}`)
+fetch(`/api/rooms/lookup?${query.toString()}`)
       .then((res) => res.json())
       .then((data: LookupResponse) => {
         setRoom((prev) => {
@@ -136,11 +200,71 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
           }
           return data.room ?? null;
         });
-        setPlayers(data.players ?? []);
+setPlayers(data.players ?? []);
         setCurrentPlayer(data.currentPlayer ?? null);
+// Load settings from room data if they exist (persisted until room is dissolved)
+        // Ensure all settings default to true even if server returns partial settings
+        if (data.room?.settings) {
+          setRoomSettings({
+            auto_advance: data.room.settings.auto_advance ?? true,
+            auto_advance_delay: data.room.settings.auto_advance_delay ?? 10,
+            anonymous_voting: data.room.settings.anonymous_voting ?? true,
+          });
+        }
       })
       .catch(() => setRoom(null));
-  }, [roomCode, savedPlayerId]);
+}, [roomCode, savedPlayerId]);
+
+// Load custom scenarios when in lobby (no active round)
+  useEffect(() => {
+    if (!room?.id || room?.active_round_id) {
+      setCustomScenarios([]);
+      return;
+    }
+    
+    fetch(`/api/scenario-suggestions?roomId=${room.id}`)
+      .then(res => res.json())
+      .then(data => setCustomScenarios(data.suggestions ?? []))
+      .catch(() => setCustomScenarios([]));
+  }, [room?.id, room?.active_round_id]);
+
+  // Realtime: scenario_suggestions changes - Task 3
+  useEffect(() => {
+    if (!room?.id || room?.active_round_id) {
+      return;
+    }
+
+    let mounted = true;
+
+    const channel = supabase
+      .channel(`scenario-suggestions-${room.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'scenario_suggestions',
+          filter: `room_id=eq.${room.id}`,
+        },
+        async () => {
+          if (!mounted) return;
+          // Refresh suggestions when anyone adds/updates
+          try {
+            const res = await fetch(`/api/scenario-suggestions?roomId=${room.id}`);
+            const data = await res.json();
+            if (mounted) {
+              setCustomScenarios(data.suggestions ?? []);
+            }
+          } catch { /* ignore */ }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [room?.id, room?.active_round_id]);
 
   useEffect(() => {
     if (!room?.active_round_id || !savedPlayerId) {
@@ -148,15 +272,33 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
       return;
     }
 
-    let mounted = true;
+let mounted = true;
     const roundId = room.active_round_id;
 
-    const fetchRound = async () => {
+    const fetchRound = async (retries = 3, delayMs = 100) => {
       try {
-        const response = await fetch(`/api/rounds/${roundId}?playerId=${savedPlayerId}`);
-        const data = await response.json();
-        if (mounted && response.ok) {
+        let response = await fetch(`/api/rounds/${roundId}?playerId=${savedPlayerId}`);
+        let data = await response.json();
+        
+        // Handle Supabase replica lag: retry 404 a few times with exponential backoff
+        let attempt = 0;
+        while (response.status === 404 && attempt < retries && mounted) {
+          console.log('[fetchRound] 404, retrying in', delayMs, 'ms...');
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          delayMs *= 2; // exponential backoff
+          attempt++;
+          response = await fetch(`/api/rounds/${roundId}?playerId=${savedPlayerId}`);
+          data = await response.json();
+        }
+        
+if (mounted && response.ok) {
           setRoundState(data.round ?? null);
+          // Extract paused_at from round data and update local isPaused state
+          if (data.round?.paused_at) {
+            setIsPaused(true);
+          } else if (data.round?.status === 'playing') {
+            setIsPaused(false);
+          }
           setRoundError(null);
           if (!data.round) {
             setRoom((prev) => (prev ? { ...prev, active_round_id: null } : prev));
@@ -419,8 +561,60 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
       } catch {}
     }, 15000);
 
-    return () => clearInterval(interval);
+return () => clearInterval(interval);
   }, [savedPlayerId, roomCode]);
+
+  // Disconnect detection during rounds: check player last_seen every 10 seconds
+  useEffect(() => {
+    if (!room?.active_round_id || !savedPlayerId || roundState?.status !== 'playing') return;
+
+    const checkDisconnects = async () => {
+      try {
+        const res = await fetch(`/api/rooms/lookup?roomCode=${roomCode}&playerId=${savedPlayerId}`);
+        const data: LookupResponse = await res.json();
+        
+        if (!data.players || !roundState?.player_order) return;
+        
+        const now = new Date();
+        const disconnectedPlayersList: string[] = [];
+        
+        // Check each player in the current round
+        for (const player of data.players) {
+          if (roundState.player_order.includes(player.id)) {
+            // If player has no last_seen or it's more than 30 seconds old, mark as disconnected
+            const lastSeen = player.last_seen ? new Date(player.last_seen) : null;
+            const secondsSinceLastSeen = lastSeen 
+              ? (now.getTime() - lastSeen.getTime()) / 1000 
+              : 999; // If no last_seen, assume disconnected
+              
+            if (secondsSinceLastSeen > 30) {
+              disconnectedPlayersList.push(player.id);
+            }
+          }
+        }
+        
+        // Update disconnected players set
+        setDisconnectedPlayers(new Set(disconnectedPlayersList));
+        
+        // If current player disconnected, auto-skip to next player
+        const currentPlayerId = roundState.current_pick?.user_id;
+        if (currentPlayerId && disconnectedPlayersList.includes(currentPlayerId)) {
+          console.log('[Disconnect] Current player disconnected, auto-skipping...');
+          handleNextPlayer();
+        }
+      } catch (error) {
+        console.log('[Disconnect] Error checking player status:', error);
+      }
+    };
+
+    // Poll every 10 seconds during active round
+    const interval = setInterval(checkDisconnects, 10000);
+    
+    // Also check immediately on mount
+    checkDisconnects();
+    
+    return () => clearInterval(interval);
+  }, [room?.active_round_id, savedPlayerId, roomCode, roundState?.status, roundState?.player_order, roundState?.current_pick?.user_id]);
 
   // Reset vote state when current pick changes (for ALL players)
   useEffect(() => {
@@ -460,7 +654,72 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
 
   const handleConnectSpotify = () => {
     if (!savedPlayerId) return;
-    window.location.href = `/api/spotify/auth?playerId=${savedPlayerId}`;
+window.location.href = `/api/spotify/auth?playerId=${savedPlayerId}`;
+  };
+
+const handlePauseGame = async (action: 'pause' | 'resume') => {
+    if (!room?.active_round_id || !currentPlayer?.id) return;
+    setIsPausing(true);
+    try {
+      const response = await fetch('/api/rounds/pause', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roundId: room.active_round_id, playerId: currentPlayer.id, action }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setRoundError(data.error || 'Failed to pause/resume game');
+        return;
+      }
+      setIsPaused(action === 'pause');
+      // Auto-close settings when resuming
+      if (action === 'resume') {
+        setShowSettings(false);
+      }
+    } catch (error) {
+      setRoundError('Failed to pause/resume game');
+    } finally {
+      setIsPausing(false);
+    }
+  };
+
+  const handleUpdateSettings = async (newSettings: RoomSettings) => {
+    if (!room?.room_code || !currentPlayer?.id) return;
+    try {
+      const response = await fetch(`/api/rooms/${room.room_code}/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: currentPlayer.id, settings: newSettings }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setRoundError(data.error || 'Failed to update settings');
+        return;
+      }
+      setRoomSettings(newSettings);
+    } catch (error) {
+      setRoundError('Failed to update settings');
+    }
+  };
+
+const handleSubmitCustomScenario = async () => {
+    if (!room?.id || !currentPlayer?.id || !customScenarioInput.trim()) return;
+    setCustomScenarioSent(true);
+    try {
+      const response = await fetch('/api/scenario-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomId: room.id, playerId: currentPlayer.id, suggestion: customScenarioInput.trim() }),
+      });
+      if (response.ok) {
+        setCustomScenarioInput('');
+        // Refresh custom scenarios
+        fetch(`/api/scenario-suggestions?roomId=${room.id}`)
+          .then(res => res.json())
+          .then(data => setCustomScenarios(data.suggestions ?? []));
+      }
+    } catch { /* ignore */ }
+    setTimeout(() => setCustomScenarioSent(false), 2000);
   };
 
   const allSpotifyConnected = players.length > 0 && players.every((player) => player.spotify_connected);
@@ -470,7 +729,45 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
   const currentPick = roundState?.current_pick;
   const canVote = !!currentPlayer && roundState?.status === 'playing' && !!currentPick;
   const hasVoted = roundState?.user_vote != null;
-  const allVotesReady = roundState ? roundState.votes_cast >= roundState.votes_needed : false;
+const allVotesReady = roundState ? roundState.votes_cast >= roundState.votes_needed : false;
+// Track previous turn index to detect when we advance to next player
+const [prevTurnIndex, setPrevTurnIndex] = useState<number | null>(null);
+// Show player name only AFTER advancing to next turn (not when votes are locally ready)
+// This ensures ALL players see the name at the same time
+const showPlayerName = !roomSettings.anonymous_voting || (prevTurnIndex !== null && prevTurnIndex !== roundState?.current_turn_index);
+  
+  // Update prevTurnIndex when the current turn index changes
+  useEffect(() => {
+    if (roundState?.current_turn_index !== undefined && roundState.current_turn_index !== prevTurnIndex) {
+      setPrevTurnIndex(roundState.current_turn_index);
+    }
+  }, [roundState?.current_turn_index, prevTurnIndex]);
+  
+  // Auto-advance timer: start countdown when all votes are ready and setting is enabled
+  useEffect(() => {
+    if (!allVotesReady || !roomSettings.auto_advance || !isHost || roundState?.status !== 'playing') {
+      setAutoAdvanceTime(null);
+      return;
+    }
+    
+    setAutoAdvanceTime(roomSettings.auto_advance_delay);
+    
+    const timer = setInterval(() => {
+      setAutoAdvanceTime((prev) => {
+        const next = (prev ?? 1) - 1;
+        if (next <= 0) {
+          clearInterval(timer);
+          // Auto-advance to next player
+          handleNextPlayer();
+          return null;
+        }
+        return next;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [allVotesReady, roomSettings.auto_advance, roomSettings.auto_advance_delay, isHost, roundState?.status]);
+
   const canNext = isHost && roundState?.status === 'playing' && allVotesReady;
   const playerCanControl = currentPlayer?.id === currentPick?.user_id || isHost;
   const spotifyDeviceHint = playbackError?.includes('No active Spotify device found')
@@ -497,8 +794,9 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
         return;
       }
 
-      if (data.round?.id) {
+if (data.round?.id) {
         setRoom((prev) => (prev ? { ...prev, active_round_id: data.round.id } : prev));
+// Reset lobby transition state for new round
         fetchRound(data.round.id);
       }
     } catch (error) {
@@ -542,8 +840,9 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
     });
   };
 
-  const handleNextPlayer = async () => {
-    if (!room?.active_round_id || !currentPlayer?.id) return;
+const handleNextPlayer = async () => {
+    if (!room?.active_round_id || !currentPlayer?.id || isTransitioning) return;
+    setIsTransitioning(true);
     setNextError(null);
 
     const response = await fetch(`/api/rounds/${room.active_round_id}/next-track`, {
@@ -554,12 +853,14 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
 
     const data = await response.json();
     if (!response.ok) {
-      setNextError(data.error || 'Could not move to next player.');
+setNextError(data.error || 'Could not move to next player.');
+      setIsTransitioning(false);
       return;
     }
 
-    if (data.status === 'finished') {
+if (data.status === 'finished') {
       setRoundState((prev) => (prev ? { ...prev, status: 'finished' } : prev));
+      setIsTransitioning(false);
       return;
     }
 
@@ -590,6 +891,7 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
       setVoteScore(null);
       setVoteSuccess(null);
       setVoteError(null);
+      setIsTransitioning(false);
     }
   };
 
@@ -635,23 +937,20 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
     router.push('/');
   };
 
-  const handleReturnToLobby = async () => {
-    // Only reset locally - do NOT broadcast to others
+const handleReturnToLobby = async () => {
+    // Go directly to lobby - immediately redirect when button is clicked
+    // No need to check isInTransition - user can click anytime to return immediately
     setShowLobbyAfterRound(true);
     setRoundState((prev) => prev ? { ...prev, status: 'finished' } : prev);
-    setRoom((prev) => prev ? { ...prev, active_round_id: null } : prev);
-
+    setRoom((prev) => prev ? { ...prev, active_round_id: null } : null);
+    
     // If host, also clear active_round_id on server (without broadcasting)
     if (isHost && room?.room_code && currentPlayer?.id) {
-      try {
-        await fetch(`/api/rooms/${room.room_code}/end-round`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerId: currentPlayer.id }),
-        });
-      } catch {
-        // Non-critical - local state already updated
-      }
+      fetch(`/api/rooms/${room.room_code}/end-round`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: currentPlayer.id }),
+      }).catch(() => {});
     }
   };
 
@@ -693,7 +992,8 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
   return (
     <section className="hero">
 
-      {/* HIER WIRD ES GEÄNDERT: Trennt die Logik strikt zwischen Lobby und laufender Runde */}
+{/* HIER WIRD ES GEÄNDERT: Settings-Button (⚙️) für ALLE Spieler in Lobby und Runde */}
+      {/* Lobby Header: Gear-Icon für alle Spieler, Leave kommt in Settings Modal */}
       {!isPlayingRound ? (
         <div className="lobby-header">
           <button
@@ -708,11 +1008,12 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
           </button>
           <button
             type="button"
-            className="btn-leave"
-            onClick={handleLeaveRoom}
-            aria-label="Lobby verlassen"
+            className="settings-icon-btn"
+            onClick={() => setShowSettings(true)}
+            aria-label="Settings"
+            title="Settings"
           >
-            Leave
+            ⚙️
           </button>
         </div>
       ) : null}
@@ -729,67 +1030,98 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
                     const hasSpotify = player.spotify_connected;
                     const isPlayerHost = player.id === room?.host_id;
 
-                    return (
+return (
                       <div key={player.id} className={`player-card ${isMe ? 'is-me' : ''} ${isPlayerHost ? 'is-host' : ''}`}>
                         <span className="player-name">
                           {isPlayerHost && <span className="host-badge">👑</span>}
                           {player.name}
                           {isMe && <span style={{ opacity: 0.6, fontSize: '0.8rem' }}> (du)</span>}
                         </span>
-                        <div className={`spotify-status-icon ${hasSpotify ? 'connected' : 'disconnected'}`}>
-                          {hasSpotify ? (
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                              <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.893-.982-.336.075-.668-.135-.744-.47-.077-.337.135-.668.47-.745 3.856-.88 7.15-.51 9.82.124.296.18.387.563.207.866zm1.224-2.724c-.226.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.08-1.182-.413.125-.847-.107-.972-.52-.125-.413.108-.847.52-.972 3.67-1.114 8.243-.574 11.35 1.335.366.226.486.706.257 1.08zM17.91 11.416c-3.262-1.937-8.644-2.115-11.75-1.173-.5.15-.1.916-.15.414-.15-.5.103-.918.414-1.07 3.585-1.087 9.53-.884 13.29 1.347.45.267.6.848.333 1.3-.267.45-.848.6-1.3.332z"/>
-                            </svg>
-                          ) : (
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M9 18V5l12-2v13"></path>
-                              <circle cx="6" cy="18" r="3"></circle>
-                              <circle cx="18" cy="16" r="3"></circle>
-                              <line x1="3" y1="3" x2="21" y2="21"></line>
-                            </svg>
-                          )}
-                        </div>
+                        {/* Task 1: Clickable Spotify button - only clickable by the player themselves */}
+                        {isMe ? (
+                          <button
+                            type="button"
+                            className={`spotify-status-icon ${hasSpotify ? 'connected' : 'disconnected'}`}
+                            onClick={handleConnectSpotify}
+                            aria-label={hasSpotify ? 'Spotify connected' : 'Connect Spotify'}
+                            title={hasSpotify ? 'Spotify connected' : 'Click to connect Spotify'}
+                          >
+                            {hasSpotify ? (
+                              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.893-.982-.336.075-.668-.135-.744-.47-.077-.337.135-.668.47-.745 3.856-.88 7.15-.51 9.82.124.296.18.387.563.207.866zm1.224-2.724c-.226.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.08-1.182-.413.125-.847-.107-.972-.52-.125-.413.108-.847.52-.972 3.67-1.114 8.243-.574 11.35 1.335.366.226.486.706.257 1.08zM17.91 11.416c-3.262-1.937-8.644-2.115-11.75-1.173-.5.15-.1.916-.15.414-.15-.5.103-.918.414-1.07 3.585-1.087 9.53-.884 13.29 1.347.45.267.6.848.333 1.3-.267.45-.848.6-1.3.332z"/>
+                              </svg>
+                            ) : (
+                              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M9 18V5l12-2v13"></path>
+                                <circle cx="6" cy="18" r="3"></circle>
+                                <circle cx="18" cy="16" r="3"></circle>
+                                <line x1="3" y1="3" x2="21" y2="21"></line>
+                              </svg>
+                            )}
+                          </button>
+                        ) : (
+                          <div className={`spotify-status-icon ${hasSpotify ? 'connected' : 'disconnected'}`}>
+                            {hasSpotify ? (
+                              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.893-.982-.336.075-.668-.135-.744-.47-.077-.337.135-.668.47-.745 3.856-.88 7.15-.51 9.82.124.296.18.387.563.207.866zm1.224-2.724c-.226.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.08-1.182-.413.125-.847-.107-.972-.52-.125-.413.108-.847.52-.972 3.67-1.114 8.243-.574 11.35 1.335.366.226.486.706.257 1.08zM17.91 11.416c-3.262-1.937-8.644-2.115-11.75-1.173-.5.15-.1.916-.15.414-.15-.5.103-.918.414-1.07 3.585-1.087 9.53-.884 13.29 1.347.45.267.6.848.333 1.3-.267.45-.848.6-1.3.332z"/>
+                              </svg>
+                            ) : (
+                              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M9 18V5l12-2v13"></path>
+                                <circle cx="6" cy="18" r="3"></circle>
+                                <circle cx="18" cy="16" r="3"></circle>
+                                <line x1="3" y1="3" x2="21" y2="21"></line>
+                              </svg>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
-                </div>
+</div>
               ) : (
                 <p className="hint">Waiting for players...</p>
               )}
             </div>
-            {!currentPlayer?.spotify_connected ? (
-              <div className="card spotify-card-minimal">
-                <button type="button" className="button" onClick={handleConnectSpotify} disabled={!savedPlayerId}>
-                  Connect Spotify
-                </button>
-                {!savedPlayerId ? <p className="hint" style={{ marginTop: '0.5rem' }}>Join with a name first to connect Spotify.</p> : null}
-              </div>
-            ) : null}
+
+{/* Spotify connection hint - REMOVED per task - icon in player card is now the connect button */}
           </div>
+
+{/* Task 2: Suggestions now in modal - see below */}
 
           {currentPlayer ? (
             <div className="room-summary">
-              {isHost && !room?.active_round_id ? (
-                <div className="settings-box">
-                  <label htmlFor="round-title">Scenario:</label>
-                  <select
-                    id="round-title"
-                    value={SCENARIOS.includes(scenario) ? scenario : 'Custom...'}
-                    onChange={(event) => setScenario(event.target.value === 'Custom...' ? '' : event.target.value)}
-                    className="scenario-select"
-                  >
-                    {SCENARIOS.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    value={scenario}
-                    onChange={(event) => setScenario(event.target.value)}
-                    placeholder="or enter custom scenario..."
-                    className="scenario-custom-input"
-                  />
+{isHost && !room?.active_round_id ? (
+                <div className="scenario-selection-area">
+                  {scenario && (
+                    <div className="current-scenario-display">
+                      <span className="current-scenario-label">Current:</span>
+                      <span className="current-scenario-value">{scenario}</span>
+                    </div>
+                  )}
+                  <div className="scenario-buttons-row">
+                    <button
+                      type="button"
+                      className="scenario-button"
+                      onClick={() => setShowPresetScenarios(true)}
+                    >
+                      📋 Saved Scenarios
+                    </button>
+                    <button
+                      type="button"
+                      className="scenario-button"
+                      onClick={() => setShowCustomScenarioInput(true)}
+                    >
+                      ✏️ Custom Scenario
+                    </button>
+                    <button
+                      type="button"
+                      className="scenario-button"
+                      onClick={() => setShowCommunitySuggestions(true)}
+                    >
+                      🎵 Suggestions ({customScenarios.length})
+                    </button>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -801,7 +1133,7 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
           {showLobbyAfterRound && roundState?.status === 'finished' ? <p className="success-message">Round finished — you are back in the lobby.</p> : null}
           {roundError ? <p className="error-message">{roundError}</p> : null}
 
-          <div className="actions">
+<div className="actions">
             {!room?.active_round_id ? (
               <>
                 {isHost ? (
@@ -809,37 +1141,72 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
                     {isStarting ? 'Starting …' : 'Start Round'}
                   </button>
                 ) : (
-                  <div className="waiting-for-host-field">Waiting for Host</div>
+                  <div className="waiting-host-row">
+                    <div className="waiting-for-host-field">Waiting for Host</div>
+                    {currentPlayer && (
+<button
+                        type="button"
+                        className="suggestions-modal-btn"
+                        onClick={() => setShowCommunitySuggestions(true)}
+                        aria-label="View Suggestions"
+                        title="View Suggestions"
+                      >
+                        🎵 Suggestions ({customScenarios.length})
+                      </button>
+                    )}
+                  </div>
                 )}
                 {startError ? <p className="error-message">{startError}</p> : null}
                 {currentPlayer && isHost && !allSpotifyConnected ? <p className="hint">All players must connect Spotify before starting.</p> : null}
               </>
             ) : null}
-          </div>
+</div>
         </>
       ) : null}
 
-      {roundState && !showLobbyAfterRound ? (
-        <section className="round-hero">
-          {/* Das Szenario wird hier zentral als einzige Hauptüberschrift gerendert */}
-          <h1 className="round-title-centered">{roundState.scenario}</h1>
+{roundState && !showLobbyAfterRound ? (
+<section className="round-hero">
+          {/* Round header - INLINE scenario badge + vote status */}
+<div className="player-scenario-row">
+            <span className="scenario-badge">{roundState?.scenario}</span>
+            {/* Show vote count only during active gameplay, not on scoreboard */}
+            {roundState?.status !== 'finished' && (
+              <span className="vote-status-inline">
+                <span className="vote-count">{roundState?.votes_cast}/{roundState?.votes_needed}</span> voted
+              </span>
+            )}
+            {/* Show settings for ALL players when NOT in scoreboard (finished status) */}
+            {roundState?.status !== 'finished' && (
+              <button
+                type="button"
+                className="settings-icon-btn"
+                onClick={() => setShowSettings(true)}
+                aria-label="Settings"
+                title="Settings"
+              >
+                ⚙️
+              </button>
+            )}
+          </div>
 
           {roundState.status === 'finished' ? (
             <div className="round-hero">
               <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.25rem' }}>Round finished</h2>
               <p className="hint" style={{ marginBottom: '1rem' }}>Results:</p>
               
-              <div className="scoreboard-container">
+<div className="scoreboard-container">
                 {roundState.scoreboard.length > 0 ? (
                   roundState.scoreboard
                     .sort((a, b) => b.score_total - a.score_total)
                     .map((row, index) => {
                       const rank = index + 1;
+// Show all rows immediately (no animation)
+                      
                       // Dynamische Klasse für die Top 3 Verzierungen
                       const rankClass = rank <= 3 ? `rank-${rank}` : '';
 
                       return (
-                        <div key={row.id} className={`scoreboard-row-card ${rankClass}`}>
+<div key={row.id} className={`scoreboard-row-card ${rankClass}`}>
                           {/* Platzierung */}
                           <div className="score-rank">
                             {rank === 1 ? '👑' : rank}
@@ -860,7 +1227,7 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
 
                           {/* Punkteauswertung ganz rechts */}
                           <div className="score-points-box">
-                            <span className="score-total-pts">{row.score_total} </span>
+<span className="score-total-pts">{row.vote_count > 0 ? (row.score_total / row.vote_count).toFixed(1) : '0.0'}</span>
                             <span className="score-vote-count">{row.vote_count} Votes</span>
                           </div>
                         </div>
@@ -874,19 +1241,37 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
               </div>
 
               <div className="actions" style={{ width: '100%', maxWidth: '480px', marginTop: '1.5rem' }}>
-                <button type="button" className="button btn-primary btn-full" onClick={handleReturnToLobby}>
-                  Back to Lobby
-                </button>
-                <button type="button" className="button btn-ghost btn-full" onClick={handleLeaveRoom} style={{ marginTop: '0.5rem' }}>
-                  Leave Room
-                </button>
+{/* Back to Lobby - disabled during 5 second transition */}
+              <button 
+                type="button" 
+                className={`button btn-primary btn-full ${isInTransition ? 'button-loading' : ''}`}
+                disabled={isInTransition}
+                onClick={handleReturnToLobby}
+              >
+                {isInTransition ? `Back to Lobby (${lobbyTransitionTime}s)` : 'Back to Lobby'}
+              </button>
+              {/* Leave Room - also disabled during transition */}
+              <button 
+                type="button" 
+                className={`button btn-ghost btn-full ${isInTransition ? 'button-loading' : ''}`}
+                disabled={isInTransition}
+                onClick={handleLeaveRoom} 
+                style={{ marginTop: '0.5rem' }}
+              >
+                {isInTransition ? `Leave Room (${lobbyTransitionTime}s)` : 'Leave Room'}
+              </button>
               </div>
             </div>
           ) : (
             <>
-              <div className="track-card scenario-2">
-                <p className="player-display">
-                  Player: <strong>{currentPick?.user_name ?? 'Loading …'}</strong>
+<div className="track-card scenario-2">
+<p className="player-display">
+                  {/* Merged: Player X/Y: 'name' - Anonymous Voting hides name until ALL votes are cast */}
+Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.length}: <strong>
+                    {showPlayerName 
+                      ? currentPick?.user_name ?? 'Loading …' 
+                      : `Player ${(roundState.current_turn_index ?? 0) + 1}`}
+                  </strong>
                 </p>
 
                 {currentPick ? (
@@ -910,7 +1295,14 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
                   <p>Loading next song…</p>
                 )}
 
-                {isHost && currentPick && (
+{/* Play-Button wurde nach oben zum Host Controls Stack verschoben */}
+
+                {playbackError && <p className="error-message">{playbackError}</p>}
+              </div>
+
+              {/* Host Controls Stack: Play/Pause + Next Player Button - MOVED ABOVE voting block */}
+              {isHost && currentPick && (
+                <div className="host-controls-stack">
                   <button
                     type="button"
                     className="button play-button"
@@ -919,13 +1311,33 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
                   >
                     {playbackBusy ? '...' : isPlaying ? '⏸ Pause' : '▶ Play'}
                   </button>
-                )}
+                  
+                  {/* Next Player Button - grau/transparent bis alle gevoted haben */}
+                  <button 
+                    type="button" 
+                    className={`button next-button ${!canNext ? 'next-button-disabled' : ''}`}
+                    disabled={!canNext || isTransitioning} 
+                    onClick={handleNextPlayer}
+                  >
+                    {/* Timer Anzeige wenn alle gevoted haben und auto_advance aktiviert */}
+                    {allVotesReady && autoAdvanceTime !== null ? (
+                      <span className="next-button-with-timer">
+                        {(roundState.current_turn_index ?? 0) + 1 >= roundState.player_order.length
+                          ? 'Reveal Results'
+                          : 'Next Player'}
+                        <span className="auto-advance-timer">{autoAdvanceTime}s</span>
+                      </span>
+                    ) : (
+                      (roundState.current_turn_index ?? 0) + 1 >= roundState.player_order.length
+                        ? 'Reveal Results'
+                        : 'Next Player'
+                    )}
+                  </button>
+                </div>
+              )}
 
-                {playbackError && <p className="error-message">{playbackError}</p>}
-              </div>
-
-              {/* Die Bewertungs-Box mit Slider 1-10 */}
-              <div className="card rating-box-card">
+{/* Die Bewertungs-Box mit Slider 1-10 */}
+<div className="card rating-box-card compact">
                 <div className="slider-rating-wrapper">
                   <span className="slider-label-left">1</span>
                   <input
@@ -938,48 +1350,253 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
                     disabled={hasVoted}
                   />
                   <span className="slider-label-right">10</span>
-                </div>
-                <div className="rating-value-display">
-                  {voteScore !== null ? <span className="rating-big-number">{voteScore}</span> : null}
-                </div>
-
-                <button
-                  type="button"
-                  className={`submit-vote-button ${hasVoted ? 'voted' : ''}`}
-                  disabled={!canVote || voteScore === null || hasVoted}
-                  onClick={handleVoteSubmit}
-                  aria-label="Stimme abgeben"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
-
-                <div className="vote-status-container">
-                  {voteSuccess && <span className="success-message-compact">{voteSuccess}</span>}
-                  {voteError && <span className="error-message-compact">{voteError}</span>}
-                  <span className="vote-count-compact">Votes: {roundState.votes_cast}/{roundState.votes_needed}</span>
-                </div>
-              </div>
-
-              <div className="actions bottom-actions">
-                <span className="hint" style={{ marginBottom: '0.5rem' }}>
-                  Player {(roundState.current_turn_index ?? 0) + 1} von {roundState.player_order.length}
-                </span>
-                {isHost ? (
-                  <button type="button" className="button next-button" disabled={!canNext} onClick={handleNextPlayer}>
-                    {(roundState.current_turn_index ?? 0) + 1 >= roundState.player_order.length
-                      ? 'Reveal Results'
-                      : 'Next Player'}
+                  {/* Vote button moved to right of slider */}
+                  <button
+                    type="button"
+                    className={`submit-vote-button ${hasVoted ? 'voted' : ''}`}
+                    disabled={!canVote || voteScore === null || hasVoted}
+                    onClick={handleVoteSubmit}
+                    aria-label="Stimme abgeben"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
                   </button>
-                ) : (
-                  <div className="waiting-for-host-field">Waiting for Host</div>
-                )}
-              </div>
+                </div>
+
+</div>
+
+{/* Player info now merged into player-display above */}
             </>
           )}
-        </section>
+</section>
       ) : null}
+{/* Settings Modal - nur in Lobby oder aktiver Runde, NICHT im Scoreboard */}
+    {showSettings && (!isPlayingRound || roundState?.status === 'playing') && (
+      <div className="modal-overlay" onClick={() => setShowSettings(false)}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <h2>Game Settings</h2>
+          <div className="settings-section">
+            <p className="room-code-display">Room Code: <strong>{roomCode}</strong></p>
+          </div>
+{/* Game Control - nur Host kann pausieren/fortsetzen */}
+          {roundState && roundState.status === 'playing' && isHost && (
+            <div className="settings-section">
+              <p className="setting-label">Game Control</p>
+              <button
+                type="button"
+                className={`button ${isPaused ? 'btn-primary' : 'btn-ghost'}`}
+                disabled={isPausing}
+                onClick={() => handlePauseGame(isPaused ? 'resume' : 'pause')}
+              >
+                {isPausing ? '...' : isPaused ? '▶ Resume Game' : '⏸ Pause Game'}
+              </button>
+            </div>
+          )}
+          {/* Auto-Advance - nur Host kann ändern */}
+          {isHost && (
+            <div className="settings-section">
+              <p className="setting-label">Auto-Advance</p>
+              <label className="toggle-label">
+                <input
+                  type="checkbox"
+                  checked={roomSettings.auto_advance}
+                  onChange={(e) => handleUpdateSettings({ ...roomSettings, auto_advance: e.target.checked })}
+                />
+                <span>Auto-advance to next player</span>
+              </label>
+              {roomSettings.auto_advance && (
+                <div className="setting-sub">
+                  <label>Delay (seconds):</label>
+                  <input
+                    type="number"
+                    min="5"
+                    max="30"
+                    value={roomSettings.auto_advance_delay}
+                    onChange={(e) => handleUpdateSettings({ ...roomSettings, auto_advance_delay: parseInt(e.target.value) || 10 })}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {/* Anonymous Voting - nur Host kann ändern */}
+          {isHost && (
+            <div className="settings-section">
+              <p className="setting-label">Anonymous Voting</p>
+              <label className="toggle-label">
+                <input
+                  type="checkbox"
+                  checked={roomSettings.anonymous_voting}
+                  onChange={(e) => handleUpdateSettings({ ...roomSettings, anonymous_voting: e.target.checked })}
+                />
+                <span>Hide player names until everyone votes</span>
+              </label>
+            </div>
+          )}
+
+{/* Leave Room - für ALLE Spieler zugänglich in Settings */}
+          <div className="settings-section">
+            <button 
+              type="button" 
+              className="button btn-ghost" 
+              onClick={() => {
+                setShowSettings(false);
+                handleLeaveRoom();
+              }}
+              style={{ width: '100%', marginTop: '1rem' }}
+            >
+              Leave Room
+            </button>
+          </div>
+<button type="button" className="button btn-ghost" onClick={() => setShowSettings(false)}>
+            Close
+          </button>
+        </div>
+      </div>
+    )}
+
+{/* Modal 1: Preset Scenarios - Host can select from saved scenarios */}
+    {showPresetScenarios && !room?.active_round_id && isHost && (
+      <div className="modal-overlay" onClick={() => setShowPresetScenarios(false)}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <h2>📋 Saved Scenarios</h2>
+          <div className="preset-scenarios-list">
+            {SCENARIOS.filter(s => s !== 'Custom...').map((s) => (
+              <div 
+                key={s} 
+                className={`preset-scenario-item ${scenario === s ? 'selected' : ''}`}
+                onClick={() => {
+                  setScenario(s);
+                  setShowPresetScenarios(false);
+                }}
+              >
+                <span className="preset-scenario-text">{s}</span>
+              </div>
+            ))}
+          </div>
+          <button type="button" className="button btn-ghost" onClick={() => setShowPresetScenarios(false)}>
+            Close
+          </button>
+        </div>
+      </div>
+    )}
+
+    {/* Modal 2: Custom Scenario Input - Host enters custom scenario */}
+    {showCustomScenarioInput && !room?.active_round_id && isHost && (
+      <div className="modal-overlay" onClick={() => setShowCustomScenarioInput(false)}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <h2>✏️ Custom Scenario</h2>
+          <div className="custom-scenario-input-section">
+            <input
+              type="text"
+              value={scenario}
+              onChange={(e) => setScenario(e.target.value)}
+              placeholder="Enter your scenario..."
+              className="custom-scenario-input"
+              autoFocus
+            />
+            {scenario && (
+              <p className="hint" style={{ marginTop: '0.5rem' }}>Current: <strong>{scenario}</strong></p>
+            )}
+          </div>
+          <div className="actions" style={{ marginTop: '1rem' }}>
+            <button 
+              type="button" 
+              className="button btn-primary" 
+              disabled={!scenario.trim()}
+              onClick={() => setShowCustomScenarioInput(false)}
+            >
+              Save
+            </button>
+            <button type="button" className="button btn-ghost" onClick={() => setShowCustomScenarioInput(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Modal 3: Community Suggestions - all players can add, host can select */}
+    {showCommunitySuggestions && !room?.active_round_id && (
+      <div className="modal-overlay" onClick={() => setShowCommunitySuggestions(false)}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <h2>🎵 Suggestions</h2>
+          <div className="suggestions-modal-list">
+            {/* Input for ALL players to add suggestions */}
+            {currentPlayer && (
+              <div className="suggestion-input-row">
+                <input
+                  type="text"
+                  value={customScenarioInput}
+                  onChange={(e) => setCustomScenarioInput(e.target.value)}
+                  placeholder="Add new suggestion..."
+                  className="suggestion-input"
+                />
+                <button
+                  type="button"
+                  className="button btn-small"
+                  disabled={!customScenarioInput.trim() || customScenarioSent}
+                  onClick={handleSubmitCustomScenario}
+                >
+                  {customScenarioSent ? '✓' : 'Add'}
+                </button>
+              </div>
+            )}
+            
+            {/* List of suggestions - clickable for Host */}
+            {customScenarios.map((s) => (
+              <div 
+                key={s.id} 
+                className="suggestion-item"
+                onClick={() => {
+                  if (isHost && !room?.active_round_id) {
+                    setScenario(s.suggestion);
+                    setShowCommunitySuggestions(false);
+                  }
+                }}
+                style={{ cursor: isHost && !room?.active_round_id ? 'pointer' : 'default' }}
+              >
+                <span className="suggestion-text">{s.suggestion}</span>
+                <span className="suggestion-author">by {s.player_name}</span>
+              </div>
+            ))}
+            
+            {customScenarios.length === 0 && (
+              <p className="hint" style={{ textAlign: 'center' }}>No suggestions yet. Be the first to add one!</p>
+            )}
+          </div>
+          <button type="button" className="button btn-ghost" onClick={() => setShowCommunitySuggestions(false)}>
+            Close
+          </button>
+        </div>
+      </div>
+    )}
+
+{/* Paused overlay for ALL players - blurred screen + foreground message */}
+    {isPaused && roundState && roundState.status === 'playing' && (
+      <>
+        {/* Blurred background layer */}
+        <div className="paused-blur-overlay" />
+        {/* Foreground message for ALL players */}
+        <div className="paused-foreground-message">
+          <h2>⏸ Game Paused</h2>
+          {isHost ? (
+            <p>Click Settings (⚙️) to resume</p>
+          ) : (
+            <p>Waiting for host to resume...</p>
+          )}
+          {/* Allow leave room during pause */}
+          <button 
+            type="button" 
+            className="button btn-ghost" 
+            onClick={handleLeaveRoom}
+            style={{ marginTop: '1rem' }}
+          >
+            Leave Room
+          </button>
+        </div>
+      </>
+    )}
     </section>
   );
 }

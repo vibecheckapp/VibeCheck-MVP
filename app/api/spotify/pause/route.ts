@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { spotifyPauseForUser } from '../../../../lib/spotify';
 
 export async function POST(request: Request) {
-  const body = await request.json();
+  const body = await request.json().catch(() => ({}));
   const { playerId, deviceId } = body;
 
   if (!playerId) {
@@ -12,8 +12,8 @@ export async function POST(request: Request) {
   try {
     await spotifyPauseForUser(playerId, deviceId);
     return NextResponse.json({ status: 'paused' });
-  } catch (error: any) {
-    const message = error.message ?? 'Spotify pause command failed';
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Spotify pause command failed';
     const friendly = message.includes('No active device found')
       ? 'Kein aktives Spotify-Gerät gefunden. Bitte starte Spotify auf deinem Gerät oder wähle ein Gerät aus.'
       : message;
