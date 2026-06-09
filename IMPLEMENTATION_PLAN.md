@@ -1,85 +1,246 @@
-# Implementation Plan for VibeCheck-MVP Tasks
+# Visual Overhaul Implementation Plan
 
-## Tasks Overview
-
-### Task 1: Spotify Connect Button in Lobby
-- Replace the static Spotify status indicator in each player card with a clickable button
-- When clicked, it should open a modal (similar to Settings modal) where users can connect Spotify
-- The button should only be clickable by the current player themselves (or if not connected)
-
-### Task 2: Suggestions as Modal Button
-- Convert the inline suggestions section into a clickable button in the lobby header
-- Clicking opens a modal (like Settings) with the suggestions input and list
-- Should work identically to the Settings modal
-
-### Task 3: Real-time Suggestion Updates
-- Add Supabase Realtime subscription for scenario_suggestions table
-- When a suggestion is added by any player, all clients should automatically refresh
-
-### Task 4: Song Card Spacing Adjustment
-- Reduce spacing in `.track-stack` from 0.75rem to 0.5rem
-- Reduce spacing in `.track-text-stacked` from 0.5rem 0 0 0.75rem to 0.25rem 0 0.5rem
-- Reduce padding in `.track-card.scenario-2` from 1.25rem to 1rem
+## Overview
+Complete visual redesign of globals.css to match modern party-game aesthetics (like "Splash!") - BUNT, MINIMALISTISCH, KLAR, and GAMIFIED while maintaining existing structural layout.
 
 ---
 
-## Detailed Implementation
+## Information Gathered from CSS Analysis
 
-### File: components/RoomClient.tsx
+### Current Structure (MUST NOT CHANGE):
+- All Flexbox containers, grids, and layouts remain identical
+- Dimensions (max-width: 440px, padding, margins) stay the same
+- Component ordering and HTML structure unchanged
 
-#### Task 1 Changes:
-1. Add new state: `showSpotifyModal` (boolean)
-2. In the lobby header, add a Spotify connect button (🎵 icon) next to Settings
-3. Create a Spotify connection modal that acts like Settings modal
-4. Update player card to show clickable Spotify button for current player only
-
-#### Task 2 Changes:
-1. Add new state: `showSuggestionsModal` (boolean) - reuse existing `showSuggestions` or rename
-2. Convert inline suggestions section to use a modal instead of inline display
-3. Add button in lobby header for Suggestions (like Settings)
-
-#### Task 3 Changes:
-1. Add a new useEffect for scenario_suggestions table realtime subscription
-2. Trigger refresh when INSERT events happen on scenario_suggestions
-
-#### Task 4 Changes:
-1. No JS changes needed - only CSS
+### Key CSS Elements to Modify:
+1. **:root & body** - Background colors and glow blobs
+2. **.track-card.scenario-2, .card.rating-box-card** - Card styling
+3. **.button, .pause-button, .next-button, .submit-vote-button** - Action buttons
+4. **.rating-slider** - Slider components
+5. **.round-header, .timer-badge, scenario badges** - Header/status elements
 
 ---
 
-### File: app/globals.css
+## Detailed Implementation Plan
 
-#### Task 4 CSS Changes:
+### 1. Farbpalette & Hintergrund (body & :root)
+
+#### Current:
+- Background: `radial-gradient(circle at 50% 50%, #2c115c 0%, #13042b 100%)`
+- body::before: Orange (#ffaa00), opacity 0.35
+- body::after: Spotify Green (#1db954), opacity 0.35
+
+#### Target:
+- Deep dark blue/violet: `#0a0612` (near-black with purple undertone)
+- body::before: Cyan (#00f0ff), opacity 0.5 (increased from 0.35)
+- body::after: Magenta (#ff007f), opacity 0.5 (increased from 0.35)
+
+---
+
+### 2. Karten-Look (.track-card.scenario-2, .card.rating-box-card)
+
+#### Current:
+- Background: `rgba(255, 255, 255, 0.03)`
+- Border: 1px solid rgba(255, 255, 255, 0.08)
+- backdrop-filter: blur(16px) (in hero)
+- Border-radius: 24px/16px
+
+#### Target:
+- Background: `rgba(10, 6, 18, 0.8)` (very clean dark)
+- Border: 1px solid rgba(255, 255, 255, 0.1) (ultra-fine bright edge)
+- backdrop-filter: blur(8px) (minimal, flat look)
+- Border-radius: 20px (slightly reduced for cleaner look)
+
+---
+
+### 3. Action-Buttons
+
+#### Primary Button (.button)
+
+##### Current:
+- Background: #1db954 (Spotify green)
+- text-transform: none
+- font-weight: 700
+- Box-shadow with green glow
+- 3D hover effect with translateY(-2px)
+
+##### Target:
+- Background: #ff007f (Neon-Pink/Magenta) for primary action
+- text-transform: uppercase
+- font-weight: 800
+- letter-spacing: 0.05em (game look)
+- No 3D effect - flat modern app style
+- Subtle glow: `0 4px 20px rgba(255, 0, 127, 0.4)`
+- Hover: slight lift with stronger glow
+
+#### "Reveal Results / Next"-Button (.next-button)
+
+##### Current:
+- Background: #1db954 !important
+
+##### Target:
+- Background: #ff007f (Neon-Pink/Magenta) with white text
+- Border-radius: 50px
+- Saturated app-style, no 3D effect
+
+#### Pause Button (.pause-button)
+
+##### Current:
+- Background: rgba(255, 255, 255, 0.1)
+- Color: #fff
+- Border: 1px solid rgba(255, 255, 255, 0.2)
+
+##### Target:
+- Background: rgba(255, 0, 127, 0.15) (tinted pink)
+- Border: 1px solid rgba(255, 0, 127, 0.3)
+- Color: #ff007f (matching neon)
+- Flat, modern look with subtle glow
+
+#### Submit Vote Button (.submit-vote-button)
+
+##### Current:
+- Background: rgba(255, 255, 255, 0.04)
+- Border: 1px solid rgba(255, 255, 255, 0.1)
+- Color: rgba(255, 255, 255, 0.3)
+- Voted state: #1db954
+
+##### Target:
+- Background: rgba(0, 240, 255, 0.1) (Cyan tint)
+- Border: 1px solid rgba(0, 240, 255, 0.3)
+- Color: #00f0ff (Cyan)
+- Voted state: #ff007f (Pink to contrast with voted)
+- Neon glow effect
+
+---
+
+### 4. Gamifizierter Slider (.rating-slider)
+
+#### Current:
+- Track: rgba(255, 255, 255, 0.1) solid
+- Thumb: transparent (uses background image)
+- thumb-value: #1db954 with green shadow
+
+#### Target:
+- Track: Linear gradient from #ff007f (Pink) to #00f0ff (Cyan)
+- OR: Dashed appearance via repeating-linear-gradient
+- Thumb: Full round design with neon glow
+- thumb-value: #00f0ff (Cyan) with bright neon glow
+- Positioned prominently, larger (32px)
+
+#### Implementation Details:
 ```css
-/* Track stack - reduce gap */
-.track-stack {
-  gap: 0.5rem; /* Was 0.75rem */
+.rating-slider {
+  background: linear-gradient(90deg, #ff007f, #00f0ff);
+  /* OR for dashed line effect */
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.3) 0px,
+    rgba(255, 255, 255, 0.3) 4px,
+    transparent 4px,
+    transparent 8px
+  );
 }
 
-/* Track text stacked - reduce margin */
-.track-text-stacked {
-  margin: 0.25rem 0 0.5rem 0; /* Was 0.5rem 0 0.75rem 0 */
-}
-
-/* Track card - reduce padding */
-.track-card.scenario-2 {
-  padding: 1rem; /* Was 1.25rem */
+.slider-thumb-value {
+  background: #00f0ff;
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.8), 0 0 30px rgba(0, 240, 255, 0.4);
+  width: 32px;
+  height: 32px;
 }
 ```
 
 ---
 
-## Dependencies
+### 5. Header & Status-Anzeigen (.round-header, .timer-badge)
 
-- `lib/supabase-client.ts` - already imported and used for realtime
-- No new API routes needed
+#### Current:
+- timer-badge: green (#1db954) background
+- scenario badges: various styles
+
+#### Target:
+- Unified pill design
+- Dark background: rgba(10, 6, 18, 0.8)
+- Fine outline: 1px solid rgba(255, 255, 255, 0.15)
+- HIGH CONTRAST text
+
+#### Unified Badge Requirements:
+- "Votes X/Y" always fixed on RIGHT side
+- Round title always fixed on LEFT side
+- If title too long: auto-scroll slowly in single line
+- Scrolling animation: 5-8 seconds, linear ease-in-out
+
+#### CSS Implementation:
+```css
+.round-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.round-title-container {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.round-title {
+  display: inline-block;
+  animation: scroll-title 8s linear infinite;
+}
+
+@keyframes scroll-title {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.timer-badge, .vote-count-badge {
+  background: rgba(10, 6, 18, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  font-weight: 600;
+  color: #00f0ff;
+}
+```
 
 ---
 
-## Implementation Order
+## Files to Be Edited
 
-1. First, implement Task 4 (CSS only) - quickest
-2. Then implement Tasks 1 & 2 (UI changes + modals)
-3. Then implement Task 3 (realtime)
+1. **app/globals.css** - Single file containing all styles
 
-Wait for user confirmation before proceeding.
+---
+
+## Implementation Steps
+
+1. Update :root and body backgrounds
+2. Update glow blobs (body::before, body::after)
+3. Update card styles (.track-card.scenario-2, .card.rating-box-card)
+4. Update button styles (.button, .next-button, .pause-button, .submit-vote-button)
+5. Update slider styles (.rating-slider, .slider-thumb-value)
+6. Update header/status elements (.round-header, .timer-badge, vote badges)
+7. Add scroll animation for long titles
+
+---
+
+## Testing Considerations
+
+- All layouts must remain identical (Flexbox/Grid)
+- Buttons must remain clickable and accessible
+- Slider must be usable on touch devices
+- Colors must have sufficient contrast for accessibility
+- Neon effects should not cause seizure issues (subtle animations only)
+
+---
+
+## Final Quality Checks
+
+- [ ] Background is deep dark blue/violet
+- [ ] Glow blobs are Cyan and Magenta
+- [ ] Cards have dark transparent background with bright edge
+- [ ] Primary buttons are Neon-Pink with uppercase text
+- [ ] Slider has gradient/dashed track with glowing thumb
+- [ ] Header badges are unified dark with fine outline
+- [ ] Votes always fixed on right, title on left
+- [ ] Long titles auto-scroll

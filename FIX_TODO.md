@@ -1,32 +1,31 @@
-# VibeCheck-MVP Error Fix Plan
+# Fix Plan - VibeCheck MVP
 
-## Status: COMPLETED - All Critical Issues Fixed
+## Issues to Fix
 
-### Applied Fixes
+### Problem 1: Play/Pause Button State
+- The button should show "Pause" when a song is playing and "Play" when paused
+- When skipping to next player, the button should always show "Pause" because the new song auto-plays
+- Current issue: After pausing, then skipping, button shows "Play" and user has to click twice
 
-#### Fixed #1: Database schema - Missing index on rooms.room_code ✅
-- Added `create index if not exists idx_rooms_room_code on public.rooms(room_code);`
-- This improves performance for room_code lookups used in JOIN/LOOKUP routes
+### Problem 2: Winner Song Auto-Play
+- Winner song should auto-play when round ends (status === 'finished')
+- Currently finds winner by score_total instead of average rating
+- Might not trigger if round was already finished when component mounted
 
-#### Fixed #2: Spotify.ts - Added retry logic ✅
-- Added `fetchWithRetry<T>()` helper function  
-- Implements exponential backoff for 429 (rate limit) and 5xx server errors
-- Applied to all Spotify API calls in the library
+## Implementation Steps
 
-#### Fixed #3: votes_needed calculation ✅
-- **Location**: app/api/rounds/[id]/route.ts
-- **Changed from**: `players.length`
-- **Changed to**: `playerOrder.length` 
-- **Reason**: player_order reflects which players were actually in the round, not current room members
+### Step 1: Fix handleNextPlayer - ensure isPlaying is always set correctly
+- After calling spotify.play(), always set isPlaying(true)
+- Also reset playback state: set currentPlayingUri to the new URI
 
-#### Fixed #4: Race condition in next-track (No action needed) ✅
-- **Location**: app/api/rounds/[id]/next-track/route.ts
-- **Analysis**: Code already fetches votes before checking count
-- The `force` parameter correctly allows host override
-- No code change required - logic was already correct
+### Step 2: Fix winner song selection logic
+- Calculate average rating: score_total / vote_count
+- Find pick with highest average rating
+- Trigger when round status changes to 'finished'
 
----
+### Step 3: Add better state synchronization  
+- Add playback state tracking with currentPlayingUri
+- Ensure button always reflects actual state after any transition
 
-## Summary
-- Fixed: 4 issues (2 critical, 1 functional, 1 analysis clarification)
-- No remaining issues identified
+## Files to Edit
+- components/RoomClient.tsx - main logic changes

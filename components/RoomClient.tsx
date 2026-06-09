@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase-client';
+import startRoomSync from '../lib/roomSync';
+import useSpotifyPlayer from '../lib/useSpotifyPlayer';
 
 interface RoomClientProps {
   roomCode: string;
@@ -46,6 +48,8 @@ interface RoomSettings {
   auto_advance: boolean;
   auto_advance_delay: number;
   anonymous_voting: boolean;
+  auto_play_winner_song: boolean;
+  auto_play_winner_duration: number;
 }
 
 interface RoundState {
@@ -78,10 +82,16 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
   const [isStarting, setIsStarting] = useState(false);
   const [roundState, setRoundState] = useState<RoundState | null>(null);
   const [voteScore, setVoteScore] = useState<number | null>(null);
+  const [hasTouchedVoteSlider, setHasTouchedVoteSlider] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [voteSuccess, setVoteSuccess] = useState<string | null>(null);
+  // Ref for the voting slider to update data-value attribute
+  const sliderRef = useRef<HTMLInputElement>(null);
   const [playbackBusy, setPlaybackBusy] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackActive, setPlaybackActive] = useState(false);
+  const [currentPlayingUri, setCurrentPlayingUri] = useState<string | null>(null);
+  const [winnerSongPlayed, setWinnerSongPlayed] = useState(false);
   const [nextError, setNextError] = useState<string | null>(null);
   const [roundError, setRoundError] = useState<string | null>(null);
 const [playbackError, setPlaybackError] = useState<string | null>(null);
@@ -96,16 +106,22 @@ const [playbackError, setPlaybackError] = useState<string | null>(null);
   // Game pause state
   const [isPaused, setIsPaused] = useState(false);
   const [isPausing, setIsPausing] = useState(false);
-  // Room settings
-const [roomSettings, setRoomSettings] = useState<RoomSettings>({
-    auto_advance: true,
-    auto_advance_delay: 10,
-    anonymous_voting: true,
-  });
+// Room settings
+const mapRoomSettings = (settings?: Partial<RoomSettings> | null): RoomSettings => ({
+  auto_advance: settings?.auto_advance ?? true,
+  auto_advance_delay: settings?.auto_advance_delay ?? 10,
+  anonymous_voting: settings?.anonymous_voting ?? true,
+  auto_play_winner_song: settings?.auto_play_winner_song ?? true,
+  auto_play_winner_duration: settings?.auto_play_winner_duration ?? 30,
+});
+
+const [roomSettings, setRoomSettings] = useState<RoomSettings>(mapRoomSettings());
   // Auto-advance timer
   const [autoAdvanceTime, setAutoAdvanceTime] = useState<number | null>(null);
-  // Settings modal
+// Settings modal
   const [showSettings, setShowSettings] = useState(false);
+  // Player theme preference (dark/light)
+  const [playerTheme, setPlayerTheme] = useState<string>('dark');
 // Custom scenarios from community
   const [customScenarioInput, setCustomScenarioInput] = useState('');
   const [customScenarioSent, setCustomScenarioSent] = useState(false);
@@ -148,7 +164,17 @@ const [playerLastSeen, setPlayerLastSeen] = useState<Record<string, string>>({})
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [kickError, setKickError] = useState<string | null>(null);
+  const [kickingPlayerId, setKickingPlayerId] = useState<string | null>(null);
   const router = useRouter();
+
+  const handleKickedOrRemovedFromRoom = () => {
+    try {
+      window.localStorage.removeItem(`vibecheck-player-${roomCode}`);
+    } catch {}
+    alert('You were removed from the room.');
+    router.push('/');
+  };
 
   const handleCopyCode = async () => {
     try {
@@ -188,7 +214,12 @@ const [playerLastSeen, setPlayerLastSeen] = useState<Record<string, string>>({})
 
 fetch(`/api/rooms/lookup?${query.toString()}`)
       .then((res) => res.json())
-      .then((data: LookupResponse) => {
+      .then((data: LookupResponse & { theme?: string }) => {
+        if (savedPlayerId && !data.currentPlayer) {
+          handleKickedOrRemovedFromRoom();
+          return;
+        }
+
         setRoom((prev) => {
           if (!prev) return data.room ?? null;
           // suppressRoundSync = wahr bedeutet: wir haben gerade lokal eine
@@ -204,16 +235,80 @@ setPlayers(data.players ?? []);
         setCurrentPlayer(data.currentPlayer ?? null);
 // Load settings from room data if they exist (persisted until room is dissolved)
         // Ensure all settings default to true even if server returns partial settings
-        if (data.room?.settings) {
-          setRoomSettings({
-            auto_advance: data.room.settings.auto_advance ?? true,
-            auto_advance_delay: data.room.settings.auto_advance_delay ?? 10,
-            anonymous_voting: data.room.settings.anonymous_voting ?? true,
-          });
+if (data.room?.settings) {
+          setRoomSettings(mapRoomSettings(data.room.settings));
+        }
+// Load player's theme preference
+        if (data.theme) {
+          setPlayerTheme(data.theme);
         }
       })
       .catch(() => setRoom(null));
 }, [roomCode, savedPlayerId]);
+
+  // Determine host flag early so hooks can use it
+  const isHost = currentPlayer?.id && room?.host_id ? currentPlayer.id === room.host_id : false;
+
+  // Initialize embedded Spotify Web Playback SDK for the host only
+  const spotify = useSpotifyPlayer({ playerId: currentPlayer?.id ?? '', isHost, roomCode: room?.room_code });
+
+  useEffect(() => {
+    if (spotify?.error) {
+      setPlaybackError(spotify.error);
+    }
+  }, [spotify?.error]);
+
+  useEffect(() => {
+    const sdkPlayer = (window as any)?.__vibecheck_spotify_player_instance?.player;
+    if (!isHost || !sdkPlayer) return;
+
+    const onStateChange = (state: any) => {
+      if (!state) return;
+      setPlaybackActive(!state.paused);
+      setIsPlaying(state.paused);
+    };
+
+    sdkPlayer.addListener('player_state_changed', onStateChange);
+    return () => {
+      try {
+        sdkPlayer.removeListener('player_state_changed', onStateChange);
+      } catch {}
+    };
+  }, [isHost, spotify?.ready]);
+
+  // Centralized server-authoritative sync: subscribe to room_events and apply snapshots
+  useEffect(() => {
+    if (!room?.id) return;
+    const stop = startRoomSync(room.id, {
+      getLocalStateVersion: () => (room as any)?.state_version ?? null,
+      onEvent: (ev) => {
+        // optional: quick local reactions for non-authoritative UI effects
+        // but authoritative state comes from snapshots
+      },
+      onSnapshot: (snapshot) => {
+        try {
+          const sRoom = snapshot.room ?? null;
+          const sPlayers = snapshot.players ?? [];
+          setRoom(sRoom);
+          setPlayers(sPlayers);
+          if (sRoom?.settings) {
+            setRoomSettings(mapRoomSettings(sRoom.settings));
+          }
+          // votes and song_history are authoritative; merge minimally
+          // The detailed round structure is fetched by existing round APIs when active_round_id changes
+        } catch (err) {
+          console.error('apply snapshot error', err);
+        }
+      },
+      playerId: savedPlayerId,
+      roomCode,
+    });
+
+    return () => stop();
+  }, [room?.id, savedPlayerId, roomCode]);
+
+  // NOTE: Playback is now explicitly controlled via handlePlayPause button click only.
+  // Do NOT auto-play on new current_pick; let host decide when to press Play.
 
 // Load custom scenarios when in lobby (no active round)
   useEffect(() => {
@@ -293,6 +388,10 @@ let mounted = true;
         
 if (mounted && response.ok) {
           setRoundState(data.round ?? null);
+          setIsPlaying(true);
+          setPlaybackActive(false);
+          setCurrentPlayingUri(null);
+          setWinnerSongPlayed(false);
           // Extract paused_at from round data and update local isPaused state
           if (data.round?.paused_at) {
             setIsPaused(true);
@@ -361,6 +460,10 @@ if (mounted && response.ok) {
             const res = await fetch(`/api/rooms/lookup?roomCode=${roomCode}${savedPlayerId ? `&playerId=${savedPlayerId}` : ''}`);
             const data: LookupResponse = await res.json();
             if (mounted) {
+              if (savedPlayerId && !data.currentPlayer) {
+                handleKickedOrRemovedFromRoom();
+                return;
+              }
               setPlayers(data.players ?? []);
               setRoom((prev) => prev ? { ...prev, host_id: data.room?.host_id } : prev);
             }
@@ -441,6 +544,7 @@ if (mounted && response.ok) {
           if (payload.eventType === 'UPDATE') {
             const newActiveRoundId = payload.new?.active_round_id;
             const oldActiveRoundId = payload.old?.active_round_id;
+            const updatedSettings = payload.new?.settings;
 
             // Prüfe ob active_round_id sich geändert hat → Runde startet/wechselt
             if (newActiveRoundId !== oldActiveRoundId) {
@@ -453,6 +557,10 @@ if (mounted && response.ok) {
                     .then((data) => {
                       if (mounted) {
                         setRoundState(data.round ?? null);
+                        setIsPlaying(true);
+                        setPlaybackActive(false);
+                        setCurrentPlayingUri(null);
+                        setWinnerSongPlayed(false);
                         if (data.round) setShowLobbyAfterRound(false);
                       }
                     })
@@ -461,11 +569,20 @@ if (mounted && response.ok) {
               }
             }
 
-            // host_id hat sich geändert → Spieler neu laden
+            // Room settings changed -> apply live for all players immediately
+            if (updatedSettings) {
+              setRoomSettings(mapRoomSettings(updatedSettings));
+            }
+
+            // host_id / players refresh
             try {
               const res = await fetch(`/api/rooms/lookup?roomCode=${roomCode}${savedPlayerId ? `&playerId=${savedPlayerId}` : ''}`);
               const data: LookupResponse = await res.json();
               if (mounted) {
+                if (savedPlayerId && !data.currentPlayer) {
+                  handleKickedOrRemovedFromRoom();
+                  return;
+                }
                 setRoom((prev) => prev ? { ...prev, host_id: data.room?.host_id } : prev);
                 setPlayers(data.players ?? []);
               }
@@ -532,6 +649,10 @@ if (mounted && response.ok) {
               const res = await fetch(`/api/rooms/lookup?roomCode=${roomCode}${savedPlayerId ? `&playerId=${savedPlayerId}` : ''}`);
               const data: LookupResponse = await res.json();
               if (mounted) {
+                if (savedPlayerId && !data.currentPlayer) {
+                  handleKickedOrRemovedFromRoom();
+                  return;
+                }
                 setPlayers(data.players ?? []);
                 setCurrentPlayer(data.currentPlayer ?? null);
               }
@@ -616,16 +737,30 @@ return () => clearInterval(interval);
     return () => clearInterval(interval);
   }, [room?.active_round_id, savedPlayerId, roomCode, roundState?.status, roundState?.player_order, roundState?.current_pick?.user_id]);
 
-  // Reset vote state when current pick changes (for ALL players)
+// Reset vote state when current pick changes (for ALL players)
   useEffect(() => {
     const currentPickId = roundState?.current_pick?.id;
     if (currentPickId) {
       // New player turn - reset vote score and messages
       setVoteScore(null);
+      setHasTouchedVoteSlider(false);
       setVoteSuccess(null);
       setVoteError(null);
     }
   }, [roundState?.current_pick?.id]);
+
+// Update slider thumb data-value attribute when voteScore changes - this is used by CSS to display the number
+  useEffect(() => {
+    if (sliderRef.current) {
+      const value = voteScore ?? 5;
+      sliderRef.current.setAttribute('data-value', String(value));
+      
+      // For WebKit browsers, we need to manually update the thumb's pseudo-element content
+      // This is done via the CSS ::after pseudo-element using content: attr(data-value)
+      // Force a re-render of the slider styles by touching the element
+      sliderRef.current.style.setProperty('--thumb-value', String(value));
+    }
+  }, [voteScore]);
 
   // Immediate round sync when active_round_id transitions from null -> new round id
   const fetchRound = async (roundId: string) => {
@@ -635,6 +770,10 @@ return () => clearInterval(interval);
       const data = await response.json();
       if (response.ok) {
         setRoundState(data.round ?? null);
+        setIsPlaying(true);
+        setPlaybackActive(false);
+        setCurrentPlayingUri(null);
+        setWinnerSongPlayed(false);
         setRoundError(null);
         if (!data.round) {
           setRoom((prev) => (prev ? { ...prev, active_round_id: null } : prev));
@@ -683,14 +822,24 @@ const handlePauseGame = async (action: 'pause' | 'resume') => {
     }
   };
 
-  const handleUpdateSettings = async (newSettings: RoomSettings) => {
+const handleUpdateSettings = async (newSettings: RoomSettings) => {
     if (!room?.room_code || !currentPlayer?.id) return;
     try {
-      const response = await fetch(`/api/rooms/${room.room_code}/settings`, {
+      let response = await fetch(`/api/rooms/${room.room_code}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: currentPlayer.id, settings: newSettings }),
       });
+
+      // Fallback for environments where nested dynamic route may resolve to 404
+      if (response.status === 404) {
+        response = await fetch('/api/rooms/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomCode: room.room_code, playerId: currentPlayer.id, settings: newSettings }),
+        });
+      }
+
       const data = await response.json();
       if (!response.ok) {
         setRoundError(data.error || 'Failed to update settings');
@@ -701,6 +850,34 @@ const handlePauseGame = async (action: 'pause' | 'resume') => {
       setRoundError('Failed to update settings');
     }
   };
+
+  const handleUpdateTheme = async (newTheme: string) => {
+    if (!currentPlayer?.id) return;
+    try {
+      const response = await fetch('/api/players/theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: currentPlayer.id, theme: newTheme }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        console.error('Failed to update theme:', data.error);
+        return;
+      }
+      setPlayerTheme(newTheme);
+    } catch (error) {
+      console.error('Failed to update theme:', error);
+    }
+  };
+
+  // Apply theme to document root when it changes
+  useEffect(() => {
+    if (playerTheme === 'light') {
+      document.documentElement.classList.add('light-theme');
+    } else {
+      document.documentElement.classList.remove('light-theme');
+    }
+  }, [playerTheme]);
 
 const handleSubmitCustomScenario = async () => {
     if (!room?.id || !currentPlayer?.id || !customScenarioInput.trim()) return;
@@ -723,35 +900,32 @@ const handleSubmitCustomScenario = async () => {
   };
 
   const allSpotifyConnected = players.length > 0 && players.every((player) => player.spotify_connected);
-  const isHost = currentPlayer?.id && room?.host_id ? currentPlayer.id === room.host_id : false;
   const canStartRound = isHost && allSpotifyConnected && !!scenario.trim() && !room?.active_round_id;
   const isPlayingRound = !!room?.active_round_id && !showLobbyAfterRound;
   const currentPick = roundState?.current_pick;
   const canVote = !!currentPlayer && roundState?.status === 'playing' && !!currentPick;
   const hasVoted = roundState?.user_vote != null;
 const allVotesReady = roundState ? roundState.votes_cast >= roundState.votes_needed : false;
-// Track previous turn index to detect when we advance to next player
-const [prevTurnIndex, setPrevTurnIndex] = useState<number | null>(null);
-// Show player name only AFTER advancing to next turn (not when votes are locally ready)
-// This ensures ALL players see the name at the same time
-const showPlayerName = !roomSettings.anonymous_voting || (prevTurnIndex !== null && prevTurnIndex !== roundState?.current_turn_index);
-  
-  // Update prevTurnIndex when the current turn index changes
-  useEffect(() => {
-    if (roundState?.current_turn_index !== undefined && roundState.current_turn_index !== prevTurnIndex) {
-      setPrevTurnIndex(roundState.current_turn_index);
-    }
-  }, [roundState?.current_turn_index, prevTurnIndex]);
+// Show player name only when anonymous voting is disabled OR when all votes are cast.
+// This is server-authoritative via votes_cast/votes_needed from round state.
+const showPlayerName = !roomSettings.anonymous_voting || allVotesReady;
+const effectivePaused = !!roundState && roundState.status === 'playing' && (isPaused || !!roundState.paused_at);
   
   // Auto-advance timer: start countdown when all votes are ready and setting is enabled
   useEffect(() => {
-    if (!allVotesReady || !roomSettings.auto_advance || !isHost || roundState?.status !== 'playing') {
+    if (!allVotesReady || !roomSettings.auto_advance || !isHost || roundState?.status !== 'playing' || effectivePaused) {
       setAutoAdvanceTime(null);
       return;
     }
-    
+
+    if (roomSettings.auto_advance_delay <= 0) {
+      setAutoAdvanceTime(null);
+      handleNextPlayer();
+      return;
+    }
+
     setAutoAdvanceTime(roomSettings.auto_advance_delay);
-    
+
     const timer = setInterval(() => {
       setAutoAdvanceTime((prev) => {
         const next = (prev ?? 1) - 1;
@@ -764,9 +938,86 @@ const showPlayerName = !roomSettings.anonymous_voting || (prevTurnIndex !== null
         return next;
       });
     }, 1000);
-    
+
     return () => clearInterval(timer);
-  }, [allVotesReady, roomSettings.auto_advance, roomSettings.auto_advance_delay, isHost, roundState?.status]);
+  }, [allVotesReady, roomSettings.auto_advance, roomSettings.auto_advance_delay, isHost, roundState?.status, effectivePaused]);
+
+// Auto-play winner song when round finishes (immediate, no delay)
+  useEffect(() => {
+    if (!roundState || roundState.status !== 'finished' || winnerSongPlayed || !isHost || !spotify?.ready || !roomSettings.auto_play_winner_song) {
+      return;
+    }
+
+    const scoreboardRows = Array.from(
+      new Map(
+        (roundState.scoreboard ?? [])
+          .filter((row) => row.user_id && row.track_name && row.uri)
+          .map((row) => [row.user_id, row])
+      ).values()
+    ).slice(0, roundState.player_order.length);
+
+    // Winner = highest average score; tie-breaker by higher total score
+    const winnerSong = scoreboardRows
+      .sort((a, b) => {
+        const avgA = a.vote_count > 0 ? a.score_total / a.vote_count : 0;
+        const avgB = b.vote_count > 0 ? b.score_total / b.vote_count : 0;
+        if (avgB !== avgA) return avgB - avgA;
+        return b.score_total - a.score_total;
+      })[0];
+
+    if (!winnerSong?.uri) {
+      return;
+    }
+
+    const winnerUri = winnerSong.uri;
+
+    // Play immediately when scoreboard is available
+    const playWinner = async () => {
+      try {
+        await spotify.play(winnerUri);
+        setIsPlaying(false);
+        setPlaybackActive(true);
+        setCurrentPlayingUri(winnerUri);
+        setWinnerSongPlayed(true);
+      } catch (error: any) {
+        const msg = String(error?.message ?? '');
+        if (msg.toLowerCase().includes('restriction violated') || msg.toLowerCase().includes('spotify blockiert')) {
+          setPlaybackError('Gewinner-Song konnte nicht automatisch gestartet werden (Spotify Restriction).');
+          setIsPlaying(true);
+          setPlaybackActive(false);
+          return;
+        }
+        console.error('Failed to auto-play winner song:', error);
+      }
+    };
+    playWinner();
+
+    let stopTimeout: NodeJS.Timeout | null = null;
+    if (roomSettings.auto_play_winner_duration > 0) {
+      stopTimeout = setTimeout(async () => {
+        try {
+          await spotify.pause();
+          setIsPlaying(true);
+          setPlaybackActive(false);
+        } catch (error) {
+          console.error('Failed to auto-stop winner song:', error);
+        }
+      }, roomSettings.auto_play_winner_duration * 1000);
+    }
+
+    return () => {
+      if (stopTimeout) clearTimeout(stopTimeout);
+    };
+  }, [
+    roundState?.status,
+    roundState?.scoreboard,
+    roundState?.player_order,
+    winnerSongPlayed,
+    isHost,
+    spotify?.ready,
+    roomSettings.auto_play_winner_song,
+    roomSettings.auto_play_winner_duration
+  ]);
 
   const canNext = isHost && roundState?.status === 'playing' && allVotesReady;
   const playerCanControl = currentPlayer?.id === currentPick?.user_id || isHost;
@@ -796,8 +1047,29 @@ const showPlayerName = !roomSettings.anonymous_voting || (prevTurnIndex !== null
 
 if (data.round?.id) {
         setRoom((prev) => (prev ? { ...prev, active_round_id: data.round.id } : prev));
-// Reset lobby transition state for new round
+        // Reset lobby transition state for new round
         fetchRound(data.round.id);
+        
+        // Auto-play first song when round starts (host only)
+        if (isHost && spotify?.ready && data.round.current_pick?.uri) {
+          setTimeout(async () => {
+            try {
+              await spotify.play(data.round.current_pick.uri);
+              setIsPlaying(false);
+              setPlaybackActive(true);
+              setCurrentPlayingUri(data.round.current_pick.uri);
+            } catch (playError: any) {
+              const msg = String(playError?.message ?? '');
+              if (msg.toLowerCase().includes('restriction violated') || msg.toLowerCase().includes('spotify blockiert')) {
+                setPlaybackError('Erster Song konnte nicht automatisch gestartet werden (Spotify Restriction). Manuell auf Play drücken.');
+                setIsPlaying(true);
+                setPlaybackActive(false);
+                return;
+              }
+              console.error('Failed to auto-play first song:', playError);
+            }
+          }, 500); // Small delay to ensure player is ready
+        }
       }
     } catch (error) {
       setIsStarting(false);
@@ -840,8 +1112,8 @@ if (data.round?.id) {
     });
   };
 
-const handleNextPlayer = async () => {
-    if (!room?.active_round_id || !currentPlayer?.id || isTransitioning) return;
+  const handleNextPlayer = async () => {
+    if (!room?.active_round_id || !currentPlayer?.id || isTransitioning || effectivePaused) return;
     setIsTransitioning(true);
     setNextError(null);
 
@@ -860,61 +1132,116 @@ setNextError(data.error || 'Could not move to next player.');
 
 if (data.status === 'finished') {
       setRoundState((prev) => (prev ? { ...prev, status: 'finished' } : prev));
+      setIsPlaying(true);
+      setPlaybackActive(false);
+      setCurrentPlayingUri(null);
       setIsTransitioning(false);
       return;
     }
 
-    if (data.pick) {
+if (data.pick) {
+      const newPick = {
+        id: data.pick.id,
+        user_id: data.pick.user_id,
+        user_name: players.find((player) => player.id === data.pick.user_id)?.name ?? 'Unbekannt',
+        track_name: data.pick.track_name,
+        artist_names: data.pick.artist_names,
+        album_name: data.pick.album_name,
+        cover_url: data.pick.cover_url,
+        uri: data.pick.uri,
+        played: data.pick.played,
+        score_total: 0,
+        vote_count: 0,
+      };
+      
       setRoundState((prev) =>
         prev
           ? {
               ...prev,
               current_turn_index: prev.current_turn_index + 1,
-              current_pick: {
-                id: data.pick.id,
-                user_id: data.pick.user_id,
-                user_name: players.find((player) => player.id === data.pick.user_id)?.name ?? 'Unbekannt',
-                track_name: data.pick.track_name,
-                artist_names: data.pick.artist_names,
-                album_name: data.pick.album_name,
-                cover_url: data.pick.cover_url,
-                uri: data.pick.uri,
-                played: data.pick.played,
-                score_total: 0,
-                vote_count: 0,
-              },
+              current_pick: newPick,
               user_vote: null,
               votes_cast: 0,
             }
           : prev
       );
-      setVoteScore(null);
+setVoteScore(null);
+      setHasTouchedVoteSlider(false);
       setVoteSuccess(null);
       setVoteError(null);
       setIsTransitioning(false);
+      
+// Auto-play new song when advancing to next player (host only)
+      // FIX: Always set isPlaying to true because we just started playing the new song
+      if (isHost && spotify?.ready && data.pick.uri) {
+        setTimeout(async () => {
+          try {
+            await spotify.play(data.pick.uri);
+            setIsPlaying(false);
+            setPlaybackActive(true);
+            setCurrentPlayingUri(data.pick.uri);
+          } catch (playError: any) {
+            const msg = String(playError?.message ?? '');
+            if (msg.toLowerCase().includes('restriction violated') || msg.toLowerCase().includes('spotify blockiert')) {
+              setPlaybackError('Auto-Play war nicht möglich (Spotify Restriction). Runde läuft weiter, manuell auf Play drücken.');
+              setIsPlaying(true);
+              setPlaybackActive(false);
+              return;
+            }
+            console.error('Failed to auto-play next song:', playError);
+          }
+        }, 500); // Small delay to ensure player is ready
+      } else {
+        setIsPlaying(false);
+        setPlaybackActive(true);
+        setCurrentPlayingUri(data.pick.uri);
+      }
     }
   };
 
   const handlePlayPause = async () => {
-    if (!playerCanControl || !currentPlayer?.id || !currentPick) return;
+    if (!playerCanControl || !currentPlayer?.id || !currentPick || effectivePaused) return;
+
+    if (!spotify) {
+      setPlaybackError('Spotify player is not initialized.');
+      return;
+    }
+
+    if (!spotify.ready) {
+      setPlaybackError('Spotify player is not ready yet. Please wait a moment.');
+      return;
+    }
+
     setPlaybackBusy(true);
     setPlaybackError(null);
 
     try {
-      const response = await fetch(isPlaying ? '/api/spotify/pause' : '/api/spotify/play', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isPlaying ? { playerId: currentPlayer.id } : { playerId: currentPlayer.id, uri: currentPick.uri }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        setPlaybackError(data.error || 'Error controlling playback.');
-        return;
-      }
-
+      // Invertierte Buttonlogik:
+      // isPlaying=true => Button zeigt "Play" (Song läuft NICHT)
+      // isPlaying=false => Button zeigt "Pause" (Song läuft)
+      const shouldStartPlayback = isPlaying;
       setIsPlaying(!isPlaying);
+
+      if (shouldStartPlayback) {
+        if (!currentPick.uri) {
+          setPlaybackError('Track URI missing');
+          setIsPlaying(true);
+          return;
+        }
+
+        if (currentPlayingUri === currentPick.uri) {
+          await spotify.resume();
+        } else {
+          await spotify.play(currentPick.uri);
+          setCurrentPlayingUri(currentPick.uri);
+        }
+        setPlaybackActive(true);
+      } else {
+        await spotify.pause();
+        setPlaybackActive(false);
+      }
     } catch (error: any) {
+      setIsPlaying(isPlaying);
       setPlaybackError(error?.message ?? 'Error controlling playback.');
     } finally {
       setPlaybackBusy(false);
@@ -973,6 +1300,42 @@ const handleReturnToLobby = async () => {
     setDeleteSuccess('Room dissolved.');
     router.push('/room/enter');
   };
+
+  const handleKickPlayer = async (targetPlayerId: string) => {
+    if (!room?.room_code || !currentPlayer?.id || !isHost) return;
+    if (targetPlayerId === currentPlayer.id) return;
+
+    setKickError(null);
+    setKickingPlayerId(targetPlayerId);
+
+    try {
+      const response = await fetch(`/api/rooms/${room.room_code}/kick`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: currentPlayer.id, targetPlayerId }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setKickError(data.error || 'Player could not be kicked.');
+        setKickingPlayerId(null);
+        return;
+      }
+
+      // Keep "Kicking..." until realtime lookup confirms player is actually gone from players list.
+    } catch {
+      setKickError('Player could not be kicked.');
+      setKickingPlayerId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!kickingPlayerId) return;
+    const stillInRoom = players.some((p) => p.id === kickingPlayerId);
+    if (!stillInRoom) {
+      setKickingPlayerId(null);
+    }
+  }, [players, kickingPlayerId]);
 
   const SCENARIOS = [
     'Prosecco Afterparty',
@@ -1037,14 +1400,13 @@ return (
                           {player.name}
                           {isMe && <span style={{ opacity: 0.6, fontSize: '0.8rem' }}> (du)</span>}
                         </span>
+                        <div className="player-card-right">
                         {/* Task 1: Clickable Spotify button - only clickable by the player themselves */}
-                        {isMe ? (
-                          <button
-                            type="button"
+                        <div className="player-spotify-controls">
+                          <div
                             className={`spotify-status-icon ${hasSpotify ? 'connected' : 'disconnected'}`}
-                            onClick={handleConnectSpotify}
-                            aria-label={hasSpotify ? 'Spotify connected' : 'Connect Spotify'}
-                            title={hasSpotify ? 'Spotify connected' : 'Click to connect Spotify'}
+                            aria-label={hasSpotify ? 'Spotify connected' : 'Spotify not connected'}
+                            title={hasSpotify ? 'Spotify connected' : 'Spotify not connected'}
                           >
                             {hasSpotify ? (
                               <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -1058,23 +1420,36 @@ return (
                                 <line x1="3" y1="3" x2="21" y2="21"></line>
                               </svg>
                             )}
-                          </button>
-                        ) : (
-                          <div className={`spotify-status-icon ${hasSpotify ? 'connected' : 'disconnected'}`}>
-                            {hasSpotify ? (
-                              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                                <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.893-.982-.336.075-.668-.135-.744-.47-.077-.337.135-.668.47-.745 3.856-.88 7.15-.51 9.82.124.296.18.387.563.207.866zm1.224-2.724c-.226.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.08-1.182-.413.125-.847-.107-.972-.52-.125-.413.108-.847.52-.972 3.67-1.114 8.243-.574 11.35 1.335.366.226.486.706.257 1.08zM17.91 11.416c-3.262-1.937-8.644-2.115-11.75-1.173-.5.15-.1.916-.15.414-.15-.5.103-.918.414-1.07 3.585-1.087 9.53-.884 13.29 1.347.45.267.6.848.333 1.3-.267.45-.848.6-1.3.332z"/>
-                              </svg>
-                            ) : (
-                              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M9 18V5l12-2v13"></path>
-                                <circle cx="6" cy="18" r="3"></circle>
-                                <circle cx="18" cy="16" r="3"></circle>
-                                <line x1="3" y1="3" x2="21" y2="21"></line>
-                              </svg>
-                            )}
                           </div>
-                        )}
+                          {isMe && !hasSpotify ? (
+                            <button
+                              type="button"
+                              className="spotify-connect-cta"
+                              onClick={handleConnectSpotify}
+                              aria-label="Connect Spotify"
+                              title="Connect Spotify"
+                            >
+                              <span className="spotify-connect-cta-icon">🎵</span>
+                              Connect Spotify
+                            </button>
+                          ) : null}
+                          {isHost && !isMe && !room?.active_round_id ? (
+                            <button
+                              type="button"
+                              className="button btn-ghost"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                void handleKickPlayer(player.id);
+                              }}
+                              disabled={kickingPlayerId === player.id}
+                              style={{ marginTop: 0, pointerEvents: kickingPlayerId === player.id ? 'none' : 'auto' }}
+                            >
+                              {kickingPlayerId === player.id ? 'Kicking…' : 'Kick'}
+                            </button>
+                          ) : null}
+                        </div>
+                        </div>
                       </div>
                     );
                   })}
@@ -1105,14 +1480,14 @@ return (
                       className="scenario-button"
                       onClick={() => setShowPresetScenarios(true)}
                     >
-                      📋 Saved Scenarios
+                      📋 Saved
                     </button>
                     <button
                       type="button"
                       className="scenario-button"
                       onClick={() => setShowCustomScenarioInput(true)}
                     >
-                      ✏️ Custom Scenario
+                      ✏️ Custom 
                     </button>
                     <button
                       type="button"
@@ -1157,6 +1532,7 @@ return (
                   </div>
                 )}
                 {startError ? <p className="error-message">{startError}</p> : null}
+                {kickError ? <p className="error-message">{kickError}</p> : null}
                 {currentPlayer && isHost && !allSpotifyConnected ? <p className="hint">All players must connect Spotify before starting.</p> : null}
               </>
             ) : null}
@@ -1175,8 +1551,8 @@ return (
                 <span className="vote-count">{roundState?.votes_cast}/{roundState?.votes_needed}</span> voted
               </span>
             )}
-            {/* Show settings for ALL players when NOT in scoreboard (finished status) */}
-            {roundState?.status !== 'finished' && (
+            {/* Hide settings while paused so host only sees pause overlay controls */}
+            {roundState?.status !== 'finished' && !effectivePaused && (
               <button
                 type="button"
                 className="settings-icon-btn"
@@ -1196,8 +1572,20 @@ return (
               
 <div className="scoreboard-container">
                 {roundState.scoreboard.length > 0 ? (
-                  roundState.scoreboard
-                    .sort((a, b) => b.score_total - a.score_total)
+                  Array.from(
+                    new Map(
+                      roundState.scoreboard
+                        .filter((row) => row.user_id && row.track_name && row.uri)
+                        .map((row) => [row.user_id, row])
+                    ).values()
+                  )
+                    .slice(0, roundState.player_order.length)
+                    .sort((a, b) => {
+                      const avgA = a.vote_count > 0 ? a.score_total / a.vote_count : 0;
+                      const avgB = b.vote_count > 0 ? b.score_total / b.vote_count : 0;
+                      if (avgB !== avgA) return avgB - avgA;
+                      return b.score_total - a.score_total;
+                    })
                     .map((row, index) => {
                       const rank = index + 1;
 // Show all rows immediately (no animation)
@@ -1225,10 +1613,9 @@ return (
                             </span>
                           </div>
 
-                          {/* Punkteauswertung ganz rechts */}
+{/* Punkteauswertung ganz rechts */}
                           <div className="score-points-box">
-<span className="score-total-pts">{row.vote_count > 0 ? (row.score_total / row.vote_count).toFixed(1) : '0.0'}</span>
-                            <span className="score-vote-count">{row.vote_count} Votes</span>
+                            <span className="score-total-pts">{row.vote_count > 0 ? (row.score_total / row.vote_count).toFixed(1) : '0.0'}</span>
                           </div>
                         </div>
                       );
@@ -1267,11 +1654,13 @@ return (
 <div className="track-card scenario-2">
 <p className="player-display">
                   {/* Merged: Player X/Y: 'name' - Anonymous Voting hides name until ALL votes are cast */}
-Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.length}: <strong>
-                    {showPlayerName 
-                      ? currentPick?.user_name ?? 'Loading …' 
-                      : `Player ${(roundState.current_turn_index ?? 0) + 1}`}
-                  </strong>
+                  Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.length}:{' '}
+                  {showPlayerName ? (
+                    <strong>{currentPick?.user_name ?? 'Loading …'}</strong>
+                  ) : (
+                    // Show blur field when anonymous voting is active and not all votes are cast
+                    <span className="blur-field" aria-label="Unknown player" />
+                  )}
                 </p>
 
                 {currentPick ? (
@@ -1300,8 +1689,8 @@ Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.lengt
                 {playbackError && <p className="error-message">{playbackError}</p>}
               </div>
 
-              {/* Host Controls Stack: Play/Pause + Next Player Button - MOVED ABOVE voting block */}
-              {isHost && currentPick && (
+              {/* Host Controls Stack */}
+              {isHost && currentPick && !effectivePaused && (
                 <div className="host-controls-stack">
                   <button
                     type="button"
@@ -1309,7 +1698,7 @@ Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.lengt
                     disabled={playbackBusy}
                     onClick={handlePlayPause}
                   >
-                    {playbackBusy ? '...' : isPlaying ? '⏸ Pause' : '▶ Play'}
+                    {playbackBusy ? '...' : isPlaying ? '▶ Play' : '⏸ Pause'}
                   </button>
                   
                   {/* Next Player Button - grau/transparent bis alle gevoted haben */}
@@ -1338,17 +1727,28 @@ Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.lengt
 
 {/* Die Bewertungs-Box mit Slider 1-10 */}
 <div className="card rating-box-card compact">
-                <div className="slider-rating-wrapper">
+<div className="slider-rating-wrapper">
                   <span className="slider-label-left">1</span>
-                  <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    value={voteScore ?? 5}
-                    onChange={(e) => setVoteScore(Number(e.target.value))}
-                    className="rating-slider"
-                    disabled={hasVoted}
-                  />
+<div className={`rating-slider-container ${!hasTouchedVoteSlider ? 'is-pristine' : ''}`}>
+                    <input
+                      ref={sliderRef}
+                      type="range"
+                      min="1"
+                      max="10"
+                      value={voteScore ?? 5}
+                      onChange={(e) => {
+                        if (!hasTouchedVoteSlider) {
+                          setHasTouchedVoteSlider(true);
+                        }
+                        setVoteScore(Number(e.target.value));
+                      }}
+                      className="rating-slider"
+                      disabled={hasVoted}
+                      style={{
+                        '--thumb-value': String(voteScore ?? 5)
+                      } as React.CSSProperties}
+                    />
+                  </div>
                   <span className="slider-label-right">10</span>
                   {/* Vote button moved to right of slider */}
                   <button
@@ -1372,13 +1772,34 @@ Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.lengt
 </section>
       ) : null}
 {/* Settings Modal - nur in Lobby oder aktiver Runde, NICHT im Scoreboard */}
-    {showSettings && (!isPlayingRound || roundState?.status === 'playing') && (
+    {showSettings && (!isPlayingRound || roundState?.status === 'playing') && !effectivePaused && (
       <div className="modal-overlay" onClick={() => setShowSettings(false)}>
         <div className="modal-content" onClick={(e) => e.stopPropagation()}>
           <h2>Game Settings</h2>
           <div className="settings-section">
             <p className="room-code-display">Room Code: <strong>{roomCode}</strong></p>
           </div>
+{/* Theme Preference - für ALLE Spieler zugänglich */}
+          <div className="settings-section">
+            <p className="setting-label">Theme</p>
+            <div className="theme-toggle-row">
+              <button
+                type="button"
+                className={`theme-button ${playerTheme === 'dark' ? 'active' : ''}`}
+                onClick={() => handleUpdateTheme('dark')}
+              >
+                🌙 Dark
+              </button>
+              <button
+                type="button"
+                className={`theme-button ${playerTheme === 'light' ? 'active' : ''}`}
+                onClick={() => handleUpdateTheme('light')}
+              >
+                ☀️ Light
+              </button>
+            </div>
+          </div>
+
 {/* Game Control - nur Host kann pausieren/fortsetzen */}
           {roundState && roundState.status === 'playing' && isHost && (
             <div className="settings-section">
@@ -1407,14 +1828,27 @@ Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.lengt
               </label>
               {roomSettings.auto_advance && (
                 <div className="setting-sub">
-                  <label>Delay (seconds):</label>
-                  <input
-                    type="number"
-                    min="5"
-                    max="30"
-                    value={roomSettings.auto_advance_delay}
-                    onChange={(e) => handleUpdateSettings({ ...roomSettings, auto_advance_delay: parseInt(e.target.value) || 10 })}
-                  />
+                  <label style={{ display: 'block', marginBottom: '0.5rem' }}>Delay: {roomSettings.auto_advance_delay}s</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '0.25rem' }}>
+                    {[0, 5, 10, 30].map((sec) => (
+                      <button
+                        key={sec}
+                        type="button"
+                        onClick={() => handleUpdateSettings({ ...roomSettings, auto_advance_delay: sec })}
+                        style={{
+                          padding: '0.5rem',
+                          backgroundColor: roomSettings.auto_advance_delay === sec ? '#1DB954' : '#333',
+                          color: roomSettings.auto_advance_delay === sec ? 'white' : '#aaa',
+                          border: '1px solid #555',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                        }}
+                      >
+                        {sec}s
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1459,7 +1893,7 @@ Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.lengt
     {showPresetScenarios && !room?.active_round_id && isHost && (
       <div className="modal-overlay" onClick={() => setShowPresetScenarios(false)}>
         <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-          <h2>📋 Saved Scenarios</h2>
+          <h2>📋 Saved</h2>
           <div className="preset-scenarios-list">
             {SCENARIOS.filter(s => s !== 'Custom...').map((s) => (
               <div 
@@ -1485,7 +1919,7 @@ Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.lengt
     {showCustomScenarioInput && !room?.active_round_id && isHost && (
       <div className="modal-overlay" onClick={() => setShowCustomScenarioInput(false)}>
         <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-          <h2>✏️ Custom Scenario</h2>
+          <h2>✏️ Custom </h2>
           <div className="custom-scenario-input-section">
             <input
               type="text"
@@ -1573,7 +2007,7 @@ Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.lengt
     )}
 
 {/* Paused overlay for ALL players - blurred screen + foreground message */}
-    {isPaused && roundState && roundState.status === 'playing' && (
+    {effectivePaused && roundState && roundState.status === 'playing' && (
       <>
         {/* Blurred background layer */}
         <div className="paused-blur-overlay" />
@@ -1581,19 +2015,29 @@ Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.lengt
         <div className="paused-foreground-message">
           <h2>⏸ Game Paused</h2>
           {isHost ? (
-            <p>Click Settings (⚙️) to resume</p>
+            <>
+              <p>Game is paused.</p>
+              <div className="host-controls-stack" style={{ marginTop: '1rem' }}>
+                <button
+                  type="button"
+                  className="button btn-ghost"
+                  onClick={handleLeaveRoom}
+                >
+                  Leave Room
+                </button>
+                <button
+                  type="button"
+                  className="button btn-primary"
+                  disabled={isPausing}
+                  onClick={() => handlePauseGame('resume')}
+                >
+                  {isPausing ? '...' : '▶ Resume Game'}
+                </button>
+              </div>
+            </>
           ) : (
             <p>Waiting for host to resume...</p>
           )}
-          {/* Allow leave room during pause */}
-          <button 
-            type="button" 
-            className="button btn-ghost" 
-            onClick={handleLeaveRoom}
-            style={{ marginTop: '1rem' }}
-          >
-            Leave Room
-          </button>
         </div>
       </>
     )}

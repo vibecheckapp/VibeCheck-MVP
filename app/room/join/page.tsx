@@ -8,25 +8,42 @@ export default function JoinRoomPage() {
   const [roomCode, setRoomCode] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isJoining) return;
     setError('');
+    setIsJoining(true);
 
-    const response = await fetch('/api/rooms/join', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roomCode, name }),
-    });
+    const normalizedRoomCode = roomCode.trim().toUpperCase();
+    const joinTokenKey = `vibecheck-join-token-${normalizedRoomCode}`;
+    const clientJoinToken = window.crypto.randomUUID();
+    window.sessionStorage.setItem(joinTokenKey, clientJoinToken);
 
-    const data = await response.json();
+    try {
+      const response = await fetch('/api/rooms/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomCode: normalizedRoomCode, name, clientJoinToken }),
+      });
 
-    if (!response.ok) {
-      setError(data.error || 'Failed to join room');
-      return;
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to join room');
+        window.sessionStorage.removeItem(joinTokenKey);
+        setIsJoining(false);
+        return;
+      }
+
+      window.sessionStorage.removeItem(joinTokenKey);
+      router.push(`/room/${normalizedRoomCode}?playerId=${data.playerId}`);
+    } catch {
+      setError('Failed to join room');
+      window.sessionStorage.removeItem(joinTokenKey);
+      setIsJoining(false);
     }
-
-    router.push(`/room/${roomCode}?playerId=${data.playerId}`);
   };
 
   return (
@@ -51,8 +68,8 @@ export default function JoinRoomPage() {
             aria-label="Your name"
             required
           />
-          <button type="submit" className="button">
-            Join Room
+          <button type="submit" className="button" disabled={isJoining}>
+            {isJoining ? 'Joining…' : 'Join Room'}
           </button>
           {error ? <p className="error-message">{error}</p> : null}
         </form>

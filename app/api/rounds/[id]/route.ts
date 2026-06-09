@@ -12,7 +12,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
 
   const supabaseAdmin = getSupabaseAdmin();
 
-// Handle Supabase replica lag: retry with exponential backoff
+  // Handle Supabase replica lag: retry with exponential backoff
   let round = null;
   let roundError: any = null;
   const maxRetries = 3;
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const result = await supabaseAdmin
       .from('rounds')
-.select('id, room_id, scenario, status, player_order, current_turn_index, current_pick_id, paused_at')
+      .select('id, room_id, scenario, status, player_order, current_turn_index, current_pick_id, paused_at')
       .eq('id', id)
       .maybeSingle();
 
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     }
   }
 
-if (roundError || !round) {
+  if (roundError || !round) {
     // Fix: Check if this round_id is orphaned in the room's active_round_id
     // If so, clean it up to prevent repeated 404 errors
     if (id) {
@@ -90,14 +90,14 @@ if (roundError || !round) {
   let currentPickVotes: any[] = [];
   let userVote = null;
 
-if (round.current_pick_id) {
+  if (round.current_pick_id) {
     const { data: pickData, error: pickError } = await supabaseAdmin
       .from('round_picks')
       .select('id, user_id, track_name, artist_names, album_name, cover_url, uri, played')
       .eq('id', round.current_pick_id)
       .single();
 
-if (pickError || !pickData) {
+    if (pickError || !pickData) {
       return NextResponse.json({ error: 'Failed to load current round pick' }, { status: 500 });
     }
 
@@ -120,7 +120,7 @@ if (pickError || !pickData) {
       return NextResponse.json({ error: 'Failed to load current round votes' }, { status: 500 });
     }
 
-currentPickVotes = voteRows ?? [];
+    currentPickVotes = voteRows ?? [];
     currentPick = {
       id: pickData.id,
       user_id: pickData.user_id,
@@ -145,17 +145,24 @@ currentPickVotes = voteRows ?? [];
 
   let scoreboard: any[] = [];
   if (round.status === 'finished') {
-const { data: picks, error: scoreboardError } = await supabaseAdmin
+    const { data: picks, error: scoreboardError } = await supabaseAdmin
       .from('round_picks')
-      .select('id, user_id, track_name, artist_names, album_name, cover_url, uri')
+      .select('id, user_id, track_name, artist_names, album_name, cover_url, uri, played')
       .eq('round_id', id);
 
     if (scoreboardError) {
       return NextResponse.json({ error: 'Failed to load scoreboard' }, { status: 500 });
     }
 
-    const pickIds = (picks ?? []).map((pick: any) => pick.id);
-    const userIds = Array.from(new Set((picks ?? []).map((pick: any) => pick.user_id)));
+    const allowedUserIds = new Set(playerOrder);
+    const validPicks = (picks ?? []).filter((pick: any) =>
+      allowedUserIds.has(pick.user_id) &&
+      !!pick.track_name &&
+      !!pick.uri
+    );
+
+    const pickIds = validPicks.map((pick: any) => pick.id);
+    const userIds = Array.from(new Set(validPicks.map((pick: any) => pick.user_id)));
 
     const pickVotes = pickIds.length
       ? await supabaseAdmin.from('votes').select('round_pick_id, score').in('round_pick_id', pickIds)
@@ -184,24 +191,41 @@ const { data: picks, error: scoreboardError } = await supabaseAdmin
       usersById[user.id] = user.display_name;
     });
 
-scoreboard = (picks ?? []).map((pick: any) => {
-      const votes = votesByPick[pick.id] ?? [];
-      return {
-        id: pick.id,
-        user_id: pick.user_id,
-        user_name: usersById[pick.user_id] ?? 'Unbekannt',
-        track_name: pick.track_name,
-        artist_names: pick.artist_names,
-        cover_url: pick.cover_url,
-        uri: pick.uri,
-        score_total: votes.reduce((sum: number, vote: any) => sum + (vote.score ?? 0), 0),
-        vote_count: votes.length,
-        score_average: votes.length > 0 ? votes.reduce((sum: number, vote: any) => sum + (vote.score ?? 0), 0) / votes.length : 0,
-      };
-    });
+    // Deduplicate: exactly one scoreboard row per round player.
+    // Prefer pick with votes; fallback to played pick; fallback to first valid pick.
+    const pickByUser: Record<string, any> = {};
+    for (const userId of playerOrder) {
+      const userPicks = validPicks.filter((pick: any) => pick.user_id === userId);
+      if (userPicks.length === 0) continue;
+
+      let selected = userPicks.find((pick: any) => (votesByPick[pick.id]?.length ?? 0) > 0);
+      if (!selected) selected = userPicks.find((pick: any) => pick.played);
+      if (!selected) selected = userPicks[0];
+      pickByUser[userId] = selected;
+    }
+
+    scoreboard = playerOrder
+      .map((userId: string) => {
+        const pick = pickByUser[userId];
+        if (!pick) return null;
+        const votes = votesByPick[pick.id] ?? [];
+        return {
+          id: pick.id,
+          user_id: pick.user_id,
+          user_name: usersById[pick.user_id] ?? 'Unbekannt',
+          track_name: pick.track_name,
+          artist_names: pick.artist_names,
+          cover_url: pick.cover_url,
+          uri: pick.uri,
+          score_total: votes.reduce((sum: number, vote: any) => sum + (vote.score ?? 0), 0),
+          vote_count: votes.length,
+          score_average: votes.length > 0 ? votes.reduce((sum: number, vote: any) => sum + (vote.score ?? 0), 0) / votes.length : 0,
+        };
+      })
+      .filter(Boolean) as any[];
   }
 
-return NextResponse.json({
+  return NextResponse.json({
     round: {
       id: round.id,
       scenario: round.scenario,
@@ -210,7 +234,7 @@ return NextResponse.json({
       player_order: round.player_order ?? [],
       current_turn_index: round.current_turn_index ?? 0,
       current_pick: currentPick,
-scoreboard,
+      scoreboard,
       votes_needed: playerOrder.length,
       votes_cast: currentPick?.vote_count ?? 0,
       user_vote: userVote,

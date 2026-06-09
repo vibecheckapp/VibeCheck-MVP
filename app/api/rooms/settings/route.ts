@@ -1,32 +1,33 @@
-import { NextResponse, NextRequest } from 'next/server';
-import { getSupabaseAdmin } from '../../../../../lib/supabase-server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseAdmin } from '../../../../lib/supabase-server';
 
-export async function POST(request: NextRequest, context: { params: Promise<{ roomCode: string }> }) {
-  const { roomCode } = await context.params;
-  const body = await request.json();
-  const { playerId, settings } = body;
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => ({}));
+  const playerId = body.playerId as string | undefined;
+  const roomCodeRaw = body.roomCode as string | undefined;
+  const settings = body.settings;
 
-  if (!playerId || !settings) {
-    return NextResponse.json({ error: 'Missing playerId or settings' }, { status: 400 });
+  if (!playerId || !roomCodeRaw || !settings) {
+    console.warn('[RoomsSettings] Missing payload', { roomCodeRaw, playerId: !!playerId, hasSettings: !!settings });
+    return NextResponse.json({ error: 'Missing roomCode, playerId or settings' }, { status: 400 });
   }
 
+  const roomCode = roomCodeRaw.toUpperCase();
   const supabaseAdmin = getSupabaseAdmin();
-
-  const normalizedRoomCode = roomCode.toUpperCase();
 
   // Align lookup strategy with /api/rooms/lookup
   const { data: roomBase, error: roomBaseError } = await supabaseAdmin
     .from('rooms')
     .select('id, room_code, host_id')
-    .eq('room_code', normalizedRoomCode)
+    .eq('room_code', roomCode)
     .single();
 
   if (roomBaseError || !roomBase) {
-    console.warn('[RoomCodeSettings] Room not found (base lookup)', { roomCode: normalizedRoomCode, error: roomBaseError?.message });
+    console.warn('[RoomsSettings] Room not found (base lookup)', { roomCode, error: roomBaseError?.message });
     return NextResponse.json({ error: 'Room not found' }, { status: 404 });
   }
 
-  // Read state_version separately for env compatibility
+  // Read state_version separately (column can differ across environments)
   let stateVersion = 0;
   try {
     const { data: roomWithVersion } = await supabaseAdmin
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ro
   const room = { ...roomBase, state_version: stateVersion } as any;
 
   if (room.host_id !== playerId) {
+    console.warn('[RoomsSettings] Forbidden host mismatch', { roomCode, hostId: room.host_id, playerId });
     return NextResponse.json({ error: 'Only the host can update settings' }, { status: 403 });
   }
 
@@ -90,8 +92,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ro
   }
 
   if (updateError || !updatedRoom) {
-    console.error('[RoomCodeSettings] Failed to update settings', {
-      roomCode: normalizedRoomCode,
+    console.error('[RoomsSettings] Failed to update settings', {
+      roomCode,
       error: updateError?.message,
       details: (updateError as any)?.details,
       hint: (updateError as any)?.hint,
@@ -123,5 +125,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ro
     console.warn('room_events insert failed (non-blocking):', roomEventError.message);
   }
 
-  return NextResponse.json({ success: true, settings: updatedRoom.settings, stateVersion: updatedRoom.state_version });
+  return NextResponse.json({
+    success: true,
+    settings: updatedRoom.settings,
+    stateVersion: updatedRoom.state_version,
+  });
 }

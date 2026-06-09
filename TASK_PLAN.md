@@ -1,45 +1,45 @@
-# Task: Scenario Selection mit 3 Buttons für Host
+# Task Plan: Winner Song Duration Setting
 
-## Implementierungs-Schritte
+## Task Context
+User wants to control how long the winner song plays at the end of a round (e.g., 10, 20, 30, or 60 seconds), instead of playing indefinitely.
 
-### Phase 1: State-Variablen hinzufügen
-- [x] Drei neue State-Variablen für die drei Modals:
-  - `showPresetScenarios` (boolean) - für gespeicherte Szenarios
-  - `showCustomScenarioInput` (boolean) - für eigenes Szenario Input
-  - `showCommunitySuggestions` (boolean) - für Vorschläge der anderen (umbenennen von `showSuggestions`)
+## Current State Analysis
 
-### Phase 2: UI-Änderungen - Host Scenario Selection Area
-- [x] Dropdown + Input Combo entfernen
-- [x] Drei Buttons hinzufügen:
-  - Button 1: "Gespeicherte Szenarios" - öffnet Preset Modal
-  - Button 2: "Eigenes Szenario" - öffnet Custom Input Modal  
-  - Button 3: "Vorschläge der anderen" - öffnet Suggestions Modal
+### RoomSettings Interface (RoomClient.tsx)
+```typescript
+interface RoomSettings {
+  auto_advance: boolean;
+  auto_advance_delay: number;
+  anonymous_voting: boolean;
+  auto_play_winner_song: boolean;
+  auto_play_winner_delay: number;  // Delay BEFORE playing starts
+  // MISSING: auto_play_winner_duration // Duration to PLAY
+}
+```
 
-### Phase 3: Modal-Komponenten erstellen
-- [x] **Preset Scenarios Modal** (neu):
-  - Zeigt alle 12 SCENARIOS zur Auswahl
-  - Click auf Item setzt `scenario` State und schließt Modal
-  - Zeigt aktuelles Szenario als markiert
+### Current Winner Song Playback Logic (RoomClient.tsx)
+- Plays after `auto_play_winner_delay` seconds
+- Uses `spotify.play(winnerUri)` 
+- NO stop logic - plays indefinitely
 
-- [x] **Custom Input Modal** (neu):
-  - Text-Eingabefeld für eigene Szenarien
-  - "Speichern" Button setzt `scenario` State
-  - Zeigt aktuelles scenario wenn bereits gesetzt
+## Implementation Plan
 
-- [x] **Community Suggestions Modal** (Umstrukturierung):
-  - Umbenennung von `showSuggestions` zu `showCommunitySuggestions`
-  - Gleiche Funktionalität wie zuvor, aber als eigenständiges Modal
+### Step 1: Add `auto_play_winner_duration` to RoomSettings state
+- Add to `RoomSettings` interface with default value (e.g., 30 seconds)
+- Add to initial state in `useState<RoomSettings>`
 
-### Phase 4: Styling
-- [x] CSS für neue Buttons
-- [x] CSS für Modals (falls nötig)
+### Step 2: Add duration UI in Settings Modal
+- In the "Auto-Play Winner Song" section under Settings
+- Add option buttons for duration: 10s, 20s, 30s, 60s, "indefinite"/"continuous"
+- This is only visible when `auto_play_winner_song` is enabled and for host only
 
-## Abhängigkeiten
-- Keine neuen API-Routes nötig
-- Bestehende `/api/scenario-suggestions` wird wiederverwendet
+### Step 3: Implement auto-stop logic
+- When winner song starts playing, set a timeout to call `spotify.pause()` after the duration
+- Need to track if the winner song is currently playing with auto-stop enabled
+- Clear the timeout if user manually stops or advances
 
-## Erwartetes Ergebnis
-Host sieht 3 Buttons statt der aktuellen Dropdown/Eingabe-Kombination.
-Jeder Button öffnet ein eigenes Modal zur Szenario-Auswahl.
+## Dependent Files to Edit
+1. `components/RoomClient.tsx` - Main implementation
 
-## ✅ FERTIG - Alle Phasen abgeschlossen
+## Followup Steps
+- Test the flow: end round → winner song plays → auto-stops after duration

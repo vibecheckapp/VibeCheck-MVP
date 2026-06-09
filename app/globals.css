@@ -1,9 +1,11 @@
 :root {
-  color-scheme: dark;
-  /* Abgestufter, tieferer Hintergrund (radialer Verlauf) */
-  background: radial-gradient(circle at 50% 50%, #2c115c 0%, #13042b 100%);
+  color-scheme: light;
+  /* UPDATED: Retro Arcade / Comic Game Theme - Retro Vibes */
+  /* Background: Yellow (#fff192) */
+  background: #fff192;
   background-attachment: fixed;
-  color: #f5f5f5;
+  /* Text: Dark Blue-Black (#0F172A) - kein reines Schwarz! */
+  color: #0F172A;
   /* Freundlichere Schriftart als Fallback vor sans-serif hinzugefügt */
   font-family: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
 }
@@ -19,33 +21,8 @@ body {
   overflow-x: hidden;
 }
 
-/* --- NEU: Die Glow-Blobs im Hintergrund --- */
-body::before,
-body::after {
-  content: "";
-  position: fixed;
-  width: 400px;
-  height: 400px;
-  border-radius: 50%;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.35;
-  filter: blur(90px);
-}
-
-/* Warmes Orange/Gelb oben rechts */
-body::before {
-  background: #ffaa00;
-  top: -10%;
-  right: -5%;
-}
-
-/* Sanftes Spotify-Grün unten links */
-body::after {
-  background: #1db954;
-  bottom: -10%;
-  left: -5%;
-}
+/* --- NEU: Die Glow-Blobs im Hintergrund - REMOVED --- */
+/* Background is now flat without glow blobs */
 /* ----------------------------------------- */
 
 .page-shell {
@@ -56,31 +33,32 @@ body::after {
   padding: 0.5rem;
 }
 
-/* Hero-Card als "Glass-Card" umgebaut für den transparenten Look */
+/* Hero-Card als "Spielzeug"-Card für den Retro Arcade Look */
+/* UPDATED: #ffea61 Yellow for cards */
 .hero {
-  max-width: 520px; /* Etwas schmaler gezogen für den mobilen App-Vibe */
+  max-width: 520px;
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 28px; /* Etwas runder */
+  border: 4px solid #0F172A;
+  border-radius: 24px;
   padding: 1.5rem 1.25rem;
-  background: rgba(25, 20, 35, 0.55); /* Leicht violetter, transparenter Touch */
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 30px 100px rgba(0, 0, 0, 0.4);
+  background: #ffea61;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .hero h1 {
   margin: 0 0 0.75rem;
   font-size: clamp(2.5rem, 4vw, 3.5rem);
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: -0.03em;
+  text-shadow: 2px 2px 0px #ffea61;
 }
 
 .hero p {
   margin: 0 0 2rem;
   line-height: 1.6;
   max-width: 40rem;
-  color: rgba(255, 255, 255, 0.75);
+  color: #0F172A;
+  opacity: 0.8;
 }
 
 .actions {
@@ -94,24 +72,24 @@ body::after {
   margin-top: 1.5rem;
 }
 
-/* Das Input-Feld sah vorher sehr dunkelgrün aus. Jetzt passt es sich dem Vibe an */
+/* Das Input-Feld im Retro Arcade Look */
 .entry-form input {
   width: 100%;
   padding: 1rem 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 4px solid #0F172A;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.06);
-  color: inherit;
+  background: #FFFFFF;
+  color: #0F172A;
   font-size: 1rem;
   outline: none;
   transition: all 0.2s ease;
 }
 
-/* Fokus-Effekt beim Reinklicken */
+/* Fokus-Effekt beim Reinklicken - UPDATED to Green #4ADE80 */
 .entry-form input:focus {
-  border-color: #1db954;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 15px rgba(29, 185, 84, 0.2);
+  border-color: #4ADE80;
+  background: #FFFFFF;
+  box-shadow: 4px 4px 0px 0px #4ADE80;
 }
 
 .card-row {
@@ -123,16 +101,18 @@ body::after {
 }
 
 .card-row > div {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 18px;
+  border: 4px solid #0F172A;
+  border-radius: 24px;
   padding: 1.25rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: #ffea61;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .card {
-  background: rgba(25, 25, 25, 0.6);
-  backdrop-filter: blur(12px);       
-  border: 1px solid rgba(255, 255, 255, 0.1); 
+  background: #ffea61;
+  border: 4px solid #0F172A;
+  border-radius: 24px;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .card-row h2,
@@ -151,6 +131,8 @@ body::after {
   width: 100%;
   height: auto;
   border-radius: 16px;
+  border: 4px solid #0F172A;
+  box-shadow: 4px 4px 0px 0px #0F172A;
   margin-bottom: 1rem;
 }
 
@@ -183,25 +165,25 @@ body::after {
   width: 100%;
   min-width: 0;
   border-radius: 50%;
-  background: rgba(25, 25, 25, 0.6);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.55);
+  background: #ffea61;
+  border: 4px solid #0F172A;
+  color: #0F172A;
   font-size: clamp(1.1rem, 4vw, 1.5rem);
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .star-button:hover,
 .star-button:focus {
-  color: #ffdd00;
-  border-color: #ffffff59;
+  color: #FFE400;
+  border-color: #0F172A;
   transform: translateY(-2px);
+  box-shadow: 6px 6px 0px 0px #0F172A;
 }
 
 .star-button.selected {
-  color: #ffdd00;
-  border-color: #939393b9;
+  color: #FFE400;
+  border-color: #0F172A;
 }
 
 .error-message,
@@ -211,21 +193,24 @@ body::after {
 }
 
 .error-message {
-  color: #ff6961;
+  color: #FF5733;
+  font-weight: 700;
 }
 
 .success-message {
-  color: #1db954;
+  color: #4ADE80;
+  font-weight: 700;
 }
 
 .hint {
-  color: rgba(255, 255, 255, 0.7);
+  color: #0F172A;
+  opacity: 0.7;
 }
 
 /* --- Host-Badge in der Spielerliste --- */
 .player-card.is-host {
-  border-color: rgba(255, 184, 0, 0.4);
-  background: rgba(255, 184, 0, 0.05);
+  border-color: #FFE400;
+  background: rgba(255, 228, 0, 0.15);
 }
 
 /* --- Room Code Copy Button --- */
@@ -233,22 +218,24 @@ body::after {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffea61;
+  border: 4px solid #0F172A;
   border-radius: 12px;
   padding: 0.4rem 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: inherit;
+  color: #0F172A;
+  box-shadow: 2px 2px 0px 0px #0F172A;
 }
 
 .room-code-copy-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .room-code-copy-btn:active {
-  transform: scale(0.97);
+  transform: translateY(2px);
+  box-shadow: 0px 0px 0px 0px #0F172A;
 }
 
 .copy-icon {
@@ -258,23 +245,21 @@ body::after {
 
 /* --- Leave Button --- */
 .btn-leave {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.3);
-  border: none;
+  background: #ffea61;
+  color: #0F172A;
+  border: 2px solid #0F172A;
   padding: 0.35rem 0.5rem;
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 700;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: none;
+  box-shadow: 2px 2px 0px 0px #0F172A;
 }
 
 .btn-leave:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.5);
-  transform: none;
-  box-shadow: none;
+  transform: translateY(-2px);
+  box-shadow: 3px 3px 0px 0px #0F172A;
 }
 
 /* --- Minimal Spotify Card --- */
@@ -299,14 +284,62 @@ body::after {
   font-size: 1rem;
 }
 
+.player-spotify-controls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+}
+
+.player-spotify-controls .spotify-status-icon {
+  order: 2;
+}
+
+.player-spotify-controls .spotify-connect-cta,
+.player-spotify-controls .button.btn-ghost {
+  order: 1;
+}
+
+.spotify-connect-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.72rem;
+  border-radius: 999px;
+  border: 4px solid #0F172A;
+  background: #4ADE80;
+  color: #0F172A;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 2px 2px 0px 0px #0F172A;
+}
+
+.spotify-connect-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 0px 0px #0F172A;
+}
+
+.spotify-connect-cta:focus-visible {
+  outline: 2px solid #0F172A;
+  outline-offset: 2px;
+}
+
+.spotify-connect-cta-icon {
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
 /* --- Szenario-Dropdown --- */
 .scenario-select {
   width: 100%;
   padding: 1rem 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 4px solid #0F172A;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: #FFFFFF;
+  color: #0F172A;
   font-size: 1rem;
   outline: none;
   transition: all 0.2s ease;
@@ -315,29 +348,29 @@ body::after {
 }
 
 .scenario-select:focus {
-  border-color: #1db954;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 15px rgba(29, 185, 84, 0.2);
+  border-color: #4ADE80;
+  box-shadow: 4px 4px 0px 0px #4ADE80;
 }
 
 .scenario-select option {
-  background: #13042b;
-  color: #fff;
+  background: #FFFFFF;
+  color: #0F172A;
 }
 
 .scenario-custom-input {
   width: 100%;
   padding: 0.75rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 4px solid #0F172A;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff;
+  background: #FFFFFF;
+  color: #0F172A;
   font-size: 0.9rem;
   outline: none;
 }
 
 .scenario-custom-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: #0F172A;
+  opacity: 0.5;
 }
 
 /* --- Slider-Rating 1-10 --- */
@@ -362,32 +395,69 @@ body::after {
 .slider-label-right {
   font-size: 0.85rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.4);
+  color: #0F172A;
   min-width: 20px;
   text-align: center;
 }
 
+.rating-slider-container {
+  position: relative;
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
 .rating-slider {
+  width: 100%;
   flex-grow: 1;
   -webkit-appearance: none;
   appearance: none;
   height: 8px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  /* NEW: Orange to Green gradient for Retro theme */
+  background: linear-gradient(90deg, #FF5733, #4ADE80);
   outline: none;
   cursor: pointer;
+  border: 2px solid #0F172A;
 }
 
 .rating-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: #1db954;
+  background: #FFE400;
   cursor: pointer;
-  box-shadow: 0 0 10px rgba(29, 185, 84, 0.5);
   transition: transform 0.15s ease;
+  /* Center content */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Border for contrast */
+  border: 4px solid #0F172A;
+  box-shadow: 4px 4px 0px 0px #0F172A;
+  /* Position for pseudo-element */
+  position: relative;
+}
+
+/* Display the value number inside the thumb - uses CSS custom property updated by JS */
+.rating-slider::-webkit-slider-thumb::after {
+  content: var(--thumb-value, "5");
+  /* Position absolutely within the thumb for centering */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0F172A;
+  font-size: 0.7rem;
+  font-weight: 800;
+  font-family: system-ui, -apple-system, sans-serif;
+  line-height: 1;
 }
 
 .rating-slider::-webkit-slider-thumb:hover {
@@ -395,18 +465,55 @@ body::after {
 }
 
 .rating-slider::-moz-range-thumb {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: #1db954;
+  background: #FFE400;
   cursor: pointer;
-  border: none;
-  box-shadow: 0 0 10px rgba(29, 185, 84, 0.5);
+  border: 4px solid #0F172A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 4px 4px 0px 0px #0F172A;
+}
+
+.slider-thumb-value {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #FFE400;
+  color: #0F172A;
+  font-size: 0.72rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 2;
+  border: 3px solid #0F172A;
 }
 
 .rating-slider:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* --- NEW: Pristine slider state (before player touches it) --- */
+/* NEW: Orange to Green gradient - faded for pristine */
+.rating-slider-container.is-pristine .rating-slider {
+  background: linear-gradient(90deg, rgba(255, 87, 51, 0.3), rgba(74, 222, 128, 0.3));
+}
+
+.rating-slider-container.is-pristine .rating-slider::-webkit-slider-thumb {
+  background: rgba(255, 228, 0, 0.5);
+}
+
+.rating-slider-container.is-pristine .rating-slider::-moz-range-thumb {
+  background: rgba(255, 228, 0, 0.5);
 }
 
 .rating-value-display {
@@ -418,8 +525,7 @@ body::after {
 .rating-big-number {
   font-size: 2.5rem;
   font-weight: 900;
-  color: #1db954;
-  text-shadow: 0 0 20px rgba(29, 185, 84, 0.4);
+  color: #4ADE80;
 }
 
 /* --- Button-Varianten --- */
@@ -433,7 +539,7 @@ body::after {
 
 .room-code-label {
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: #0F172A;
 }
 
 /* --- Submit-Vote-Button über dem Slider zentriert --- */
@@ -458,31 +564,37 @@ body::after {
   margin-bottom: 0.65rem;
 }
 
-/* --- OPTIMIERT: Button mit Saftigem Glow & Klick-Animation --- */
+/* --- RETRO ARCADE Button mit 3D-Style --- */
+/* UPDATED: #FF5733 Pop Orange - Retro Arcade Energy */
+/* UPDATED: Text color changed from #FFFFFF to #0F172A for better readability on yellow/orange backgrounds */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 1rem 2rem;
-  background: #1db954;
-  color: #fff;
+  background: #FF5733;
+  color: #0F172A;
   text-decoration: none;
-  border-radius: 999px;
-  font-weight: 700;
-  border: none;
+  border-radius: 9999px; /* Pillenförmig */
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 4px solid #0F172A;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(29, 185, 84, 0.35); /* Glow-Effekt */
-  transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease, background-color 0.2s ease;
+  transition: all 0.2s ease;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .button:hover {
-  background: #1ed760; /* Spotify hellgrün beim Hover */
-  transform: translateY(-2px); /* Leichtes Hochspringen */
-  box-shadow: 0 12px 30px rgba(29, 185, 84, 0.5); /* Stärkerer Glow */
+  background: #FF6B4A;
+  transform: translateY(-2px);
+  box-shadow: 6px 6px 0px 0px #0F172A;
 }
 
 .button:active {
-  transform: translateY(1px); /* Drückt sich beim Klick ein */
+  background: #E64A1F;
+  transform: translateY(4px);
+  box-shadow: 0px 0px 0px 0px #0F172A;
 }
 /* ------------------------------------------------------------- */
 
@@ -490,17 +602,16 @@ body::after {
 button.btn-ghost,
 .button.btn-ghost {
   background: transparent;
-  color: rgba(255, 255, 255, 0.35);
-  border: none;
+  color: #0F172A;
+  border: 2px solid #0F172A;
   padding: 0.35rem 0.6rem;
   font-size: 0.75rem;
-  box-shadow: none;
+  box-shadow: 2px 2px 0px 0px #0F172A;
 }
 
 button.btn-ghost:hover,
 .button.btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.5);
 }
 
 button.btn-sm,
@@ -510,8 +621,8 @@ button.btn-sm,
 }
 
 .btn-primary {
-  background: #1db954;
-  color: #fff;
+  background: #FF5733;
+  color: #0F172A;
 }
 
 .btn-full {
@@ -552,12 +663,13 @@ button.btn-sm,
 
 /* Die Box für den Runden-Titel (gleicher Look wie die anderen Boxen) */
 .settings-box {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 18px;
+  border: 4px solid #0F172A;
+  border-radius: 24px;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: #ffea61;
   margin-top: 1rem;
   margin-bottom: 1rem;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 /* Das Text-Label über dem Eingabefeld */
@@ -565,33 +677,33 @@ button.btn-sm,
   display: block;
   font-weight: 600;
   margin-bottom: 0.65rem;
-  color: rgba(255, 255, 255, 0.9);
+  color: #0F172A;
   font-size: 0.95rem;
 }
 
-/* Das Eingabefeld selbst im modernen, transparenten Look */
+/* Das Eingabefeld selbst im Retro Look */
 .settings-box input[type="text"] {
   width: 100%;
   padding: 1rem 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 4px solid #0F172A;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: #FFFFFF;
+  color: #0F172A;
   font-size: 1rem;
   outline: none;
   transition: all 0.2s ease;
 }
 
-/* Leuchtet dezent grün auf, wenn man reinklickt */
+/* Leuchtet dezent grün auf, wenn man reinklickt - UPDATED to Green #4ADE80 */
 .settings-box input[type="text"]:focus {
-  border-color: #1db954;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 15px rgba(29, 185, 84, 0.2);
+  border-color: #4ADE80;
+  box-shadow: 4px 4px 0px 0px #4ADE80;
 }
 
-/* Macht den grauen Platzhaltertext ("z. B. Gute Laune...") lesbar */
+/* Macht den Platzhaltertext lesbar */
 .settings-box input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: #0F172A;
+  opacity: 0.5;
 }
 
 
@@ -608,23 +720,31 @@ button.btn-sm,
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.65rem;
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  background: #ffea61;
+  border: 4px solid #0F172A;
+  border-radius: 16px;
+  transition: all 0.2s ease;
+  box-shadow: 3px 3px 0px 0px #0F172A;
 }
 
-/* Hebt den aktuellen Zustand des Spielers (du) leicht hervor */
+.player-card-right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Hebt den aktuellen Zustand des Spielers (du) hervor - Green #4ADE80 */
 .player-card.is-me {
-  border-color: rgba(29, 185, 84, 0.4);
-  background: rgba(29, 185, 84, 0.05);
+  border-color: #4ADE80;
+  background: rgba(74, 222, 128, 0.2);
 }
 
 .player-name {
   font-weight: 600;
   font-size: 0.95rem;
-  color: #ffffff;
+  color: #0F172A;
 }
 
 /* Basis-Styling für das Spotify-Status-Icon */
@@ -636,16 +756,16 @@ button.btn-sm,
   height: 24px;
 }
 
-/* Wenn Spotify verbunden ist: Spotify-Grün */
+/* Wenn Spotify verbunden ist: Bright Green #4ADE80 */
 .spotify-status-icon.connected {
-  color: #1db954;
-  filter: drop-shadow(0 0 4px rgba(29, 185, 84, 0.5));
+  color: #4ADE80;
 }
 
-/* Wenn Spotify NICHT verbunden ist: Diskretes Ausgrauen */
+/* Wenn Spotify NICHT verbunden ist: Diskretes Grau */
 .spotify-status-icon.disconnected {
-  color: rgba(255, 255, 255, 0.2);
-  cursor: pointer;
+  color: #0F172A;
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* Button-Style für clickbares Spotify-Icon */
@@ -658,13 +778,14 @@ button.btn-sm,
 }
 
 .spotify-status-icon:hover {
-  background: rgba(29, 185, 84, 0.15);
-  transform: scale(1.1);
+  background: rgba(74, 222, 128, 0.2);
+  transform: scale(1.04);
 }
 
 .spotify-status-icon.disconnected:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.3);
+  color: #0F172A;
+  opacity: 0.5;
 }
 
 
@@ -687,24 +808,26 @@ button.btn-sm,
 }
 
 /* Track Card weiter an den Rand gezogen */
+/* UPDATED: #ffea61 Yellow */
 .track-card.scenario-2 {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #ffea61;
+  border: 4px solid #0F172A;
   border-radius: 24px;
-  padding: 1rem; /* Reduced from 1.25rem */
+  padding: 1rem;
   width: 100%;
-  max-width: 440px; /* Breiter für weniger Rand-Abstand */
+  max-width: 440px;
   display: flex;
   flex-direction: column;
   align-items: center;
   margin-bottom: 1rem;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 /* Kleinerer Abstand unter dem Playernamen */
 .player-display {
   font-size: 1rem;
-  opacity: 0.7;
-  margin: 0 0 0.75rem 0; /* Margin verkleinert */
+  color: #0F172A;
+  margin: 0 0 0.75rem 0;
   text-align: center;
 }
 
@@ -720,40 +843,49 @@ button.btn-sm,
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 16px;
+  border: 4px solid #0F172A;
   object-fit: cover;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .cover-placeholder {
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
+  background: #FFFFFF;
+  border: 4px solid #0F172A;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 /* Kleinerer Abstand zum Play-Button */
 .track-text-stacked {
   text-align: center;
-  margin: 0.25rem 0 0.5rem 0; /* Reduced from 0.5rem 0 0.75rem 0 */
+  margin: 0.25rem 0 0.5rem 0;
 }
 
 .track-text-stacked h3 {
   font-size: 1.35rem;
   font-weight: 700;
   margin: 0 0 0.15rem 0;
+  color: #0F172A;
 }
 
 .artist-name {
   font-size: 0.95rem;
-  opacity: 0.6;
+  color: #0F172A;
+  opacity: 0.7;
   margin: 0;
 }
 
 .play-button {
   width: 100%;
-  border-radius: 50px;
+  border-radius: 9999px;
+  background: #4ADE80;
+  border: 4px solid #0F172A;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .hidden-play-button-placeholder {
@@ -761,15 +893,17 @@ button.btn-sm,
 }
 
 /* Bewertungs-Box breiter und kompakter */
+/* UPDATED: #ffea61 Yellow */
 .card.rating-box-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  background: #ffea61;
+  border: 4px solid #0F172A;
+  border-radius: 24px;
   padding: 1rem 1.25rem;
   width: 100%;
   max-width: 440px;
   box-sizing: border-box;
   margin-bottom: 1rem;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 /* Compact voting box - reduced height */
@@ -790,10 +924,10 @@ button.btn-sm,
   gap: 0.25rem;
   flex-grow: 1;
   justify-content: space-around;
-  background: rgba(255, 255, 255, 0.04);
+  background: #ffea61;
   padding: 0.5rem;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 4px solid #0F172A;
 }
 
 /* Kompakte Status-Zeile für Text und Votes */
@@ -807,18 +941,19 @@ button.btn-sm,
 }
 
 .success-message-compact {
-  color: #1db954;
-  font-weight: 500;
+  color: #4ADE80;
+  font-weight: 700;
 }
 
 .error-message-compact {
-  color: #ff4a4a;
-  font-weight: 500;
+  color: #FF5733;
+  font-weight: 700;
 }
 
 .vote-count-compact {
+  color: #0F172A;
   opacity: 0.5;
-  margin-left: auto; /* Schiebt die Votes immer nach rechts */
+  margin-left: auto;
 }
 
 /* Next Player */
@@ -834,10 +969,14 @@ button.btn-sm,
 
 .next-button {
   width: 100%;
-  border-radius: 50px;
-  background-color: #1db954 !important;
-  color: white;
-  font-weight: 600;
+  border-radius: 9999px;
+  background-color: #FF5733 !important;
+  color: #0F172A;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 4px solid #0F172A;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 /* Task 1: Host controls stack - Play button + Next Player button */
@@ -855,29 +994,34 @@ button.btn-sm,
 }
 
 /* Task 3: Pause button styling */
+/* UPDATED: #FF5733 Orange and #4ADE80 Green */
 .pause-button {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 87, 51, 0.15);
+  color: #FF5733;
+  border: 4px solid #0F172A;
   padding: 0.75rem 1.5rem;
-  border-radius: 24px;
+  border-radius: 9999px;
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   transition: all 0.2s ease;
+  box-shadow: 3px 3px 0px 0px #0F172A;
 }
 
 .pause-button:hover {
-  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 5px 5px 0px 0px #0F172A;
 }
 
 .pause-button.paused {
-  background: #1db954;
-  border-color: #1db954;
-  color: #000;
+  background: rgba(74, 222, 128, 0.2);
+  border-color: #0F172A;
+  color: #4ADE80;
 }
 
 .pause-button.paused:hover {
-  background: #1ed760;
+  background: rgba(74, 222, 128, 0.3);
 }
 
 
@@ -887,67 +1031,69 @@ button.btn-sm,
 .stars-wrapper .star-button {
   background: transparent;
   border: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
   padding: 0;
   margin: 0;
   width: auto;
   height: auto;
   aspect-ratio: auto;
-  font-size: clamp(1.5rem, 5vw, 2.2rem); /* Sterne deutlich präsenter */
-  color: rgba(255, 255, 255, 0.15); /* Dezentes, edles Dunkellila/Grau im Standard */
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease, filter 0.2s ease;
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  color: #0F172A;
+  opacity: 0.3;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   cursor: pointer;
 }
 
 /* Hover-Effekt für die Sterne */
 .stars-wrapper .star-button:hover {
   transform: scale(1.15) rotate(4deg);
-  color: #a855f7; /* Schickes Violett beim Hovern, passend zur Lobby */
+  color: #FFE400;
+  opacity: 1;
 }
 
 /* Wenn ein Stern ausgewählt ist */
 .stars-wrapper .star-button.selected {
-  color: #ffb800; /* Warmes, sattes Goldgelb */
-  filter: drop-shadow(0 0 8px rgba(255, 184, 0, 0.35));
+  color: #FFE400;
+  opacity: 1;
 }
 
 /* Der Bestätigungshaken (Checkbox/Button daneben) */
+/* UPDATED: #4ADE80 Green accent */
 .submit-vote-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #4ADE80;
+  border: 4px solid #0F172A;
   border-radius: 14px;
-  width: 48px;  /* Schön groß und griffig */
+  width: 48px;
   height: 48px;
   min-width: 48px;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.3); /* Unauffällig im inaktiven Zustand */
+  color: #0F172A;
   transition: all 0.2s ease;
+  box-shadow: 3px 3px 0px 0px #0F172A;
 }
 
 /* Hover-Effekt für den Haken */
 .submit-vote-button:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.8);
+  transform: translateY(-2px);
+  box-shadow: 5px 5px 0px 0px #0F172A;
 }
 
 /* Wenn die Bewertung abgegeben wurde (aktiviert) */
+/* UPDATED: #FF5733 Orange voted state */
+/* UPDATED: Text color changed from #FFFFFF to #0F172A for better readability on yellow/orange backgrounds */
 .submit-vote-button.voted {
-  background: rgba(29, 185, 84, 0.1);
-  border-color: rgba(29, 185, 84, 0.4);
-  color: #1db954; /* Leuchtet erst grün, wenn geklickt/abgestimmt wurde */
-  filter: drop-shadow(0 0 8px rgba(29, 185, 84, 0.3));
+  background: #FF5733;
+  border-color: #0F172A;
+  color: #0F172A;
 }
 
 /* SVG Icon innerhalb des Hakens anpassen */
 .submit-vote-button svg {
   width: 24px;
   height: 24px;
-  stroke-width: 2.5px; /* Macht den Haken etwas dicker und moderner */
+  stroke-width: 2.5px;
 }
 
 
@@ -967,18 +1113,17 @@ button.btn-sm,
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  background: #ffea61;
+  border: 4px solid #0F172A;
+  border-radius: 24px;
+  transition: all 0.2s ease;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 /* Hover-Effekt für die Zeilen */
 .scoreboard-row-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 6px 6px 0px 0px #0F172A;
 }
 
 /* Platzierungs-Abzeichen (Rank) */
@@ -991,20 +1136,101 @@ button.btn-sm,
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.6);
+  background: #0F172A;
+  color: #E0F2FE;
 }
 
-/* Spezial-Styles für die Top 3 */
+/* Spezial-Styles für die Top 3 mit Fireworks für #1 */
+/* UPDATED: #FFE400 Bright Yellow for 1st place */
 .scoreboard-row-card.rank-1 {
-  background: linear-gradient(135deg, rgba(255, 184, 0, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%);
-  border-color: rgba(255, 184, 0, 0.3);
-  box-shadow: 0 10px 30px rgba(255, 184, 0, 0.05);
+  background: linear-gradient(135deg, rgba(255, 228, 0, 0.2) 0%, #ffea61 100%);
+  border-color: #FFE400;
+  box-shadow: 4px 4px 0px 0px #FFE400;
+  position: relative;
+  overflow: visible;
 }
 .scoreboard-row-card.rank-1 .score-rank {
-  background: #ffb800;
-  color: #13042b;
-  filter: drop-shadow(0 0 8px rgba(255, 184, 0, 0.4));
+  background: #FFE400;
+  color: #0F172A;
+}
+
+/* Fireworks animation for first place */
+@keyframes firework {
+  0% {
+    transform: translate(0, 0) scale(0);
+    opacity: 1;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes firework-particle {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--px), var(--py)) scale(0);
+    opacity: 0;
+  }
+}
+
+.firework-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.firework-particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #F4E04D;
+  top: 0;
+  left: 0;
+  animation: firework-particle 1s ease-out forwards;
+}
+
+/* Alternative firework styles - golden sparkles */
+.scoreboard-row-card.rank-1::before,
+.scoreboard-row-card.rank-1::after {
+  content: '✨';
+  position: absolute;
+  font-size: 1rem;
+  animation: sparkle 1.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.scoreboard-row-card.rank-1::before {
+  top: -8px;
+  left: -8px;
+}
+
+.scoreboard-row-card.rank-1::after {
+  bottom: -8px;
+  right: -8px;
+  animation-delay: 0.75s;
+}
+
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
 }
 
 .scoreboard-row-card.rank-2 .score-rank {
@@ -1014,7 +1240,7 @@ button.btn-sm,
 
 .scoreboard-row-card.rank-3 .score-rank {
   background: #b45309;
-  color: #fff;
+  color: #0F172A;
 }
 
 /* Song-Miniatur */
@@ -1038,12 +1264,13 @@ button.btn-sm,
 .score-player-name {
   font-size: 1.05rem;
   font-weight: 700;
-  color: #fff;
+  color: #0F172A;
 }
 
 .score-track-details {
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: #0F172A;
+  opacity: 0.7;
   white-space: nowrap;
   overflow: hidden;
   text-transform: capitalize;
@@ -1063,29 +1290,31 @@ button.btn-sm,
   align-items: center;
   justify-content: center;
   padding: 1rem 2rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #ffea61;
+  border: 4px solid #0F172A;
   border-radius: 999px;
-  color: rgba(255, 255, 255, 0.4);
+  color: #0F172A;
   font-size: 0.9rem;
-  font-weight: 500;
+  font-weight: 600;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .score-total-pts {
-  font-size: 1.25rem;
+  font-size: 1.8rem;
   font-weight: 800;
-  color: #1db954; /* Im schönen Spotify-Grün */
+  color: #4ADE80;
 }
 
 .score-vote-count {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: #0F172A;
+  opacity: 0.7;
 }
 
 .score-average {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #1db954;
+  color: #4ADE80;
   margin-left: 0.5rem;
 }
 
@@ -1108,40 +1337,45 @@ button.btn-sm,
   align-items: center;
   gap: 0.5rem;
   padding: 1.5rem 2rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffea61;
+  border: 4px solid #0F172A;
   border-radius: 16px;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .transition-timer {
   font-size: 3rem;
   font-weight: 900;
-  color: #1db954;
+  color: #4ADE80;
   line-height: 1;
 }
 
 .transition-label {
   font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: #0F172A;
+  opacity: 0.7;
 }
 
 /* Phase 1.5.3: Pause/Resume button */
+/* UPDATED: Using new party game palette */
 .pause-resume-button {
-  background: rgba(255, 193, 7, 0.2);
-  border: 1px solid rgba(255, 193, 7, 0.4);
-  color: #ffc107;
+  background: rgba(255, 228, 0, 0.2);
+  border: 4px solid #0F172A;
+  color: #FFE400;
   padding: 0.6rem 1rem;
   font-size: 0.85rem;
+  border-radius: 9999px;
+  box-shadow: 3px 3px 0px 0px #0F172A;
 }
 
 .pause-resume-button:hover {
-  background: rgba(255, 193, 7, 0.3);
+  background: rgba(244, 224, 77, 0.3);
 }
 
 .pause-resume-button.paused {
-  background: rgba(30, 215, 96, 0.2);
-  border: 1px solid rgba(30, 215, 96, 0.4);
-  color: #1db954;
+  background: rgba(74, 222, 128, 0.25);
+  border: 4px solid #0F172A;
+  color: #4ADE80;
 }
 
 .paused-indicator {
@@ -1149,16 +1383,17 @@ button.btn-sm,
   justify-content: center;
   align-items: center;
   padding: 0.75rem 1.5rem;
-  background: rgba(255, 193, 7, 0.15);
-  border: 1px solid rgba(255, 193, 7, 0.3);
-  border-radius: 8px;
+  background: rgba(255, 228, 0, 0.15);
+  border: 4px solid #0F172A;
+  border-radius: 12px;
   margin-top: 0.5rem;
+  box-shadow: 3px 3px 0px 0px #0F172A;
 }
 
 .paused-indicator span {
   font-size: 1rem;
   font-weight: 600;
-  color: #ffc107;
+  color: #FFE400;
 }
 
 /* --- NEW: Round header during gameplay --- */
@@ -1174,20 +1409,21 @@ button.btn-sm,
 
 /* --- NEW: Settings icon button --- */
 .settings-icon-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffea61;
+  border: 4px solid #0F172A;
   border-radius: 12px;
   padding: 0.4rem 0.5rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: inherit;
+  color: #0F172A;
   font-size: 1.1rem;
+  box-shadow: 2px 2px 0px 0px #0F172A;
 }
 
 .settings-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: rotate(30deg);
+  background: #FFE400;
+  transform: translateY(-2px) rotate(30deg);
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 /* --- NEW: Round indicators row --- */
@@ -1218,20 +1454,21 @@ button.btn-sm,
 }
 
 /* --- NEW: Timer badge --- */
+/* UPDATED: Green #4ADE80 */
 .timer-badge {
   padding: 0.4rem 0.75rem;
-  background: rgba(29, 185, 84, 0.15);
-  border: 1px solid rgba(29, 185, 84, 0.3);
+  background: rgba(74, 222, 128, 0.25);
+  border: 4px solid #0F172A;
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #1db954;
+  color: #4ADE80;
 }
 
 .timer-badge.transition-timer {
-  background: rgba(255, 193, 7, 0.15);
-  border-color: rgba(255, 193, 7, 0.3);
-  color: #ffc107;
+  background: rgba(255, 228, 0, 0.2);
+  border-color: #0F172A;
+  color: #FFE400;
 }
 
 /* --- NEW: Settings modal --- */
@@ -1250,14 +1487,15 @@ button.btn-sm,
 }
 
 .settings-modal {
-  background: rgba(25, 20, 35, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 20px;
+  background: #ffea61;
+  border: 4px solid #0F172A;
+  border-radius: 24px;
   padding: 1.5rem;
   max-width: 360px;
   width: 90%;
   max-height: 80vh;
   overflow-y: auto;
+  box-shadow: 6px 6px 0px 0px #0F172A;
 }
 
 .settings-modal-header {
@@ -1270,22 +1508,24 @@ button.btn-sm,
 .settings-modal-header h3 {
   margin: 0;
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 800;
+  color: #0F172A;
 }
 
 .close-btn {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
+  color: #0F172A;
   font-size: 1.5rem;
   cursor: pointer;
   padding: 0.25rem 0.5rem;
   line-height: 1;
-  transition: color 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .close-btn:hover {
-  color: #fff;
+  color: #FF5733;
+  transform: scale(1.1);
 }
 
 .settings-modal-content {
@@ -1302,7 +1542,7 @@ button.btn-sm,
 
 .settings-section label {
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: #0F172A;
 }
 
 .room-code-display {
@@ -1310,27 +1550,32 @@ button.btn-sm,
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #ffea61;
+  border: 4px solid #0F172A;
   border-radius: 12px;
+  color: #0F172A;
+  box-shadow: 2px 2px 0px 0px #0F172A;
 }
 
 .room-code-display strong {
   font-size: 1.25rem;
   letter-spacing: 0.1em;
+  color: #0F172A;
 }
 
 .copy-btn-small {
-  background: transparent;
-  border: none;
+  background: #FFE400;
+  border: 3px solid #0F172A;
   cursor: pointer;
   padding: 0.25rem;
   font-size: 1rem;
-  transition: transform 0.2s ease;
+  transition: all 0.2s ease;
+  border-radius: 6px;
 }
 
 .copy-btn-small:hover {
   transform: scale(1.1);
+  box-shadow: 2px 2px 0px 0px #0F172A;
 }
 
 /* Fix #2: Loading and error states */
@@ -1348,10 +1593,12 @@ button.btn-sm,
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: rgba(255, 107, 107, 0.1);
-  border: 1px solid rgba(255, 107, 107, 0.3);
-  border-radius: 12px;
+  background: #FFEBEE;
+  border: 4px solid #FF5733;
+  border-radius: 16px;
   margin-bottom: 1rem;
+  color: #FF5733;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 /* --- Modal overlay and content --- */
@@ -1371,8 +1618,8 @@ button.btn-sm,
 }
 
 .modal-content {
-  background: rgba(25, 20, 35, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #ffea61;
+  border: 4px solid #0F172A;
   border-radius: 24px;
   padding: 1.5rem;
   max-width: 400px;
@@ -1382,6 +1629,7 @@ button.btn-sm,
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  box-shadow: 6px 6px 0px 0px #0F172A;
 }
 
 .modal-content h2 {
@@ -1389,18 +1637,20 @@ button.btn-sm,
   font-size: 1.5rem;
   font-weight: 800;
   text-align: center;
+  color: #0F172A;
 }
 
 .modal-content h3 {
   margin: 0 0 0.5rem;
   font-size: 1.1rem;
   font-weight: 700;
+  color: #0F172A;
 }
 
 .setting-label {
   font-size: 0.95rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.8);
+  font-weight: 700;
+  color: #0F172A;
   margin-bottom: 0.5rem;
 }
 
@@ -1410,12 +1660,14 @@ button.btn-sm,
   gap: 0.75rem;
   cursor: pointer;
   font-size: 0.9rem;
+  color: #0F172A;
+  font-weight: 600;
 }
 
 .toggle-label input[type="checkbox"] {
   width: 20px;
   height: 20px;
-  accent-color: #1db954;
+  accent-color: #4ADE80;
   cursor: pointer;
 }
 
@@ -1451,8 +1703,7 @@ button.btn-sm,
 }
 
 .scenario-input:focus {
-  border-color: #1db954;
-  box-shadow: 0 0 10px rgba(29, 185, 84, 0.2);
+  border-color: #0B6E4F;
 }
 
 .btn-small {
@@ -1471,16 +1722,18 @@ button.btn-sm,
 
 .suggestions-list li {
   padding: 0.5rem 0.75rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #FFFFFF;
+  border: 2px solid #0F172A;
   border-radius: 8px;
   font-size: 0.85rem;
+  color: #0F172A;
 }
 
 .suggestions-list .by-player {
   display: block;
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: #0F172A;
+  opacity: 0.6;
   margin-top: 0.25rem;
 }
 
@@ -1502,14 +1755,14 @@ button.btn-sm,
 .paused-message {
   text-align: center;
   padding: 2rem;
-  background: rgba(255, 193, 7, 0.1);
-  border: 1px solid rgba(255, 193, 7, 0.3);
+  background: rgba(244, 224, 77, 0.1);
+  border: 1px solid rgba(244, 224, 77, 0.3);
   border-radius: 20px;
 }
 
 .paused-message h2 {
   font-size: 2rem;
-  color: #ffc107;
+  color: #F4E04D;
   margin: 0 0 0.5rem;
 }
 
@@ -1539,8 +1792,8 @@ button.btn-sm,
   transform: translate(-50%, -50%);
   text-align: center;
   padding: 2.5rem 3rem;
-  background: rgba(25, 20, 35, 0.95);
-  border: 1px solid rgba(255, 193, 7, 0.4);
+  background: rgba(61, 64, 91, 0.95);
+  border: 1px solid rgba(244, 224, 77, 0.4);
   border-radius: 24px;
   z-index: 950;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -1548,7 +1801,7 @@ button.btn-sm,
 
 .paused-foreground-message h2 {
   font-size: 2.5rem;
-  color: #ffc107;
+  color: #F4E04D;
   margin: 0 0 0.75rem;
 }
 
@@ -1561,10 +1814,11 @@ button.btn-sm,
 /* --- NEXT PLAYER BUTTON STATES --- */
 
 /* Disabled/gray state for Next Player button */
+/* UPDATED: Dark color for readability on yellow background when disabled */
 .next-button-disabled {
-  background: rgba(255, 255, 255, 0.1) !important;
-  color: rgba(255, 255, 255, 0.3) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.3) !important;
+  color: rgba(15, 23, 42, 0.5) !important;
+  border: 2px solid rgba(15, 23, 42, 0.3) !important;
   box-shadow: none !important;
   cursor: not-allowed;
 }
@@ -1578,6 +1832,7 @@ button.btn-sm,
 }
 
 /* Timer badge inside next button */
+/* UPDATED: Dark color for readability on yellow/orange backgrounds */
 .auto-advance-timer {
   display: inline-flex;
   align-items: center;
@@ -1585,12 +1840,12 @@ button.btn-sm,
   min-width: 28px;
   height: 28px;
   padding: 0 0.5rem;
-  background: rgba(255, 193, 7, 0.2);
-  border: 1px solid rgba(255, 193, 7, 0.4);
+  background: rgba(244, 224, 77, 0.35);
+  border: 2px solid #0F172A;
   border-radius: 14px;
   font-size: 0.85rem;
   font-weight: 700;
-  color: #ffc107;
+  color: #0F172A;
 }
 
 /* --- Task 2: Suggestions button next to Waiting for Host --- */
@@ -1644,8 +1899,8 @@ button.btn-sm,
 }
 
 .suggestions-modal-list .suggestion-item:hover {
-  background: rgba(29, 185, 84, 0.1);
-  border-color: rgba(29, 185, 84, 0.3);
+  background: rgba(0, 240, 255, 0.1);
+  border-color: rgba(0, 240, 255, 0.3);
 }
 
 /* --- SCOREBOARD REVEAL ANIMATION --- */
@@ -1722,21 +1977,21 @@ button.btn-sm,
 .suggestion-input {
   flex-grow: 1;
   padding: 0.75rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 2px solid #0F172A;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: #FFFFFF;
+  color: #0F172A;
   font-size: 0.9rem;
   outline: none;
 }
 
 .suggestion-input:focus {
-  border-color: #1db954;
-  box-shadow: 0 0 10px rgba(29, 185, 84, 0.2);
+  border-color: #4ADE80;
 }
 
 .suggestion-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: #0F172A;
+  opacity: 0.5;
 }
 
 .suggestions-list {
@@ -1753,24 +2008,25 @@ button.btn-sm,
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.6rem 0.75rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #FFFFFF;
+  border: 2px solid #0F172A;
   border-radius: 10px;
 }
 
 .suggestion-text {
   font-size: 0.9rem;
-  color: #fff;
+  color: #0F172A;
   transition: color 0.2s ease;
 }
 
 .suggestion-text:hover {
-  color: #1db954;
+  color: #4ADE80;
 }
 
 .suggestion-author {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: #0F172A;
+  opacity: 0.6;
 }
 
 /* --- REORG: Compact Inline Layouts --- */
@@ -1782,8 +2038,8 @@ button.btn-sm,
   justify-content: center;
   margin-top: 0.5rem;
   padding: 0.5rem;
-  background: rgba(29, 185, 84, 0.1);
-  border: 1px solid rgba(29, 185, 84, 0.2);
+  background: rgba(11, 110, 79, 0.15);
+  border: 1px solid rgba(11, 110, 79, 0.25);
   border-radius: 12px;
 }
 
@@ -1792,19 +2048,18 @@ button.btn-sm,
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: #1db954;
-  color: #fff;
+  background: #0B6E4F;
+  color: #F2EFEA;
   border: none;
   border-radius: 999px;
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .spotify-connect-btn:hover {
-  background: #1ed760;
-  transform: translateY(-1px);
+  background: #0d855f;
 }
 
 /* Suggestions inline link */
@@ -1868,7 +2123,7 @@ button.btn-sm,
 }
 
 .suggestions-inline-list .suggestion-text:hover {
-  color: #1db954;
+  color: #0B6E4F;
 }
 
 .suggestions-inline-list .suggestion-author {
@@ -1885,16 +2140,16 @@ button.btn-sm,
 .suggestion-input-inline input {
   flex: 1;
   padding: 0.4rem 0.6rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 2px solid #0F172A;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: #FFFFFF;
+  color: #0F172A;
   font-size: 0.8rem;
   outline: none;
 }
 
 .suggestion-input-inline input:focus {
-  border-color: #1db954;
+  border-color: #4ADE80;
 }
 
 .suggestion-input-inline .button {
@@ -1903,17 +2158,18 @@ button.btn-sm,
 }
 
 /* Inline scenario badge */
+/* UPDATED: Text color changed from #FFFFFF to #0F172A for better readability on yellow/orange backgrounds */
 .scenario-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   padding: 0.25rem 0.6rem;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #FF5733;
+  border: 2px solid #0F172A;
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: #0F172A;
 }
 
 /* Inline player info with scenario */
@@ -1954,7 +2210,7 @@ button.btn-sm,
 
 .vote-status-inline .vote-count {
   font-weight: 700;
-  color: #1db954;
+  color: #0B6E4F;
 }
 
 /* Compact header row */
@@ -2101,20 +2357,22 @@ button.btn-sm,
 }
 
 /* Current scenario display above the buttons */
+/* UPDATED: Orange #FF5733 for visibility on yellow */
+/* UPDATED: Text color changed from #FFFFFF to #0F172A for better readability */
 .current-scenario-display {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: rgba(29, 185, 84, 0.1);
-  border: 1px solid rgba(29, 185, 84, 0.25);
+  background: #FF5733;
+  border: 2px solid #0F172A;
   border-radius: 8px;
 }
 
 .current-scenario-label {
   font-size: 0.75rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.7);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -2122,7 +2380,7 @@ button.btn-sm,
 .current-scenario-value {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #1db954;
+  color: #0F172A;
 }
 
 /* --- Scenario buttons row - three buttons for host --- */
@@ -2137,23 +2395,23 @@ button.btn-sm,
   padding: 0.85rem 0.5rem;
   font-size: 0.8rem;
   font-weight: 500;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #FFFFFF;
+  border: 2px solid #0F172A;
   border-radius: 12px;
-  color: #fff;
+  color: #0F172A;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: center;
 }
 
 .scenario-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: #FFE400;
+  border-color: #0F172A;
   transform: translateY(-1px);
 }
 
 .scenario-button:active {
-  background: rgba(255, 255, 255, 0.15);
+  background: #4ADE80;
   transform: translateY(0);
 }
 
@@ -2169,21 +2427,22 @@ button.btn-sm,
 
 .preset-scenario-item {
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #FFFFFF;
+  border: 2px solid #0F172A;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
+  color: #0F172A;
 }
 
 .preset-scenario-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: #FFE400;
+  border-color: #0F172A;
 }
 
 .preset-scenario-item.selected {
-  background: rgba(29, 185, 84, 0.15);
-  border-color: #1db954;
+  background: #4ADE80;
+  border-color: #0F172A;
 }
 
 .preset-scenario-text {
@@ -2199,17 +2458,53 @@ button.btn-sm,
   width: 100%;
   padding: 0.75rem 1rem;
   font-size: 1rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #FFFFFF;
+  border: 2px solid #0F172A;
   border-radius: 8px;
-  color: #fff;
+  color: #0F172A;
 }
 
 .custom-scenario-input:focus {
-  border-color: #1db954;
+  border-color: #4ADE80;
   outline: none;
 }
 
 .custom-scenario-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: #0F172A;
+  opacity: 0.5;
 }
+
+/* --- NEW: Blur field for anonymous voting --- */
+.blur-field {
+  display: inline-block;
+  min-width: 80px;
+  height: 1.5em;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* --- Theme Toggle Row --- */
+.theme-toggle-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.theme-button {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: not-allowed;
+  transition: all 0.2s ease;
+  opacity: 0.5;
+}
+
+/* Dark/Light mode removed - Single party game theme only */

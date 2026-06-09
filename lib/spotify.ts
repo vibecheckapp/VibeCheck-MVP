@@ -86,6 +86,7 @@ export async function getSpotifyAuthUrl(hostname: string, playerId: string) {
       'user-read-email',
       'user-read-playback-state',
       'user-modify-playback-state',
+      'streaming',
       'playlist-read-private',
       'user-library-read',
     ].join(' '),
