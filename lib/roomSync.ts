@@ -3,6 +3,7 @@ import { supabase } from './supabase-client';
 type Handlers = {
   onSnapshot: (snapshot: any) => void;
   onEvent?: (event: any) => void;
+  onVisibilityChange?: (isVisible: boolean, wasHiddenDurationMs?: number) => void;
   getLocalStateVersion?: () => number | null;
   playerId?: string;
   roomCode?: string;
@@ -49,12 +50,29 @@ export function startRoomSync(roomId: string, handlers: Handlers) {
     fetchSnapshot();
   }, 15000);
 
+// Track when page becomes hidden for duration measurement
+  let hiddenAt: number | null = null;
+
   // Focus / visibility handlers
   function onFocus() {
     fetchSnapshot();
   }
   function onVisibility() {
-    if (document.visibilityState === 'visible') fetchSnapshot();
+    if (document.visibilityState === 'visible') {
+      const wasHiddenDuration = hiddenAt ? Date.now() - hiddenAt : undefined;
+      hiddenAt = null;
+      console.log('[roomSync] Page became visible, was hidden for:', wasHiddenDuration, 'ms');
+      
+      // Call the visibility change callback if provided
+      handlers.onVisibilityChange?.(true, wasHiddenDuration);
+      
+      // Explicit snapshot refresh when returning to page
+      fetchSnapshot();
+    } else {
+      hiddenAt = Date.now();
+      console.log('[roomSync] Page became hidden at:', hiddenAt);
+      handlers.onVisibilityChange?.(false, undefined);
+    }
   }
   window.addEventListener('focus', onFocus);
   document.addEventListener('visibilitychange', onVisibility);
@@ -92,13 +110,14 @@ export function startRoomSync(roomId: string, handlers: Handlers) {
   // initial full snapshot on start
   fetchSnapshot();
 
-  return function stop() {
+return function stop() {
     clearInterval(heartbeatInterval);
     clearInterval(safetyInterval);
     window.removeEventListener('focus', onFocus);
     document.removeEventListener('visibilitychange', onVisibility);
     window.removeEventListener('online', onOnline);
     channel.unsubscribe();
+    hiddenAt = null;
   };
 }
 

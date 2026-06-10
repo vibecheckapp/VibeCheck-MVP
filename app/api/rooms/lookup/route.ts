@@ -70,7 +70,7 @@ if (roomError || !room) {
 
 const { data: roomPlayers, error: roomPlayersError } = await supabaseAdmin
     .from('room_players')
-    .select('id, user_id, joined_at, last_seen, theme_preference, users(id, display_name, spotify_refresh_token)')
+    .select('id, user_id, joined_at, last_seen, users(id, display_name, spotify_refresh_token)')
     .eq('room_id', room.id)
     .order('joined_at', { ascending: true });
 
@@ -78,17 +78,16 @@ const { data: roomPlayers, error: roomPlayersError } = await supabaseAdmin
     return NextResponse.json({ error: 'Failed to load players' }, { status: 500 });
   }
 
-// P0: Include last_seen for disconnect detection, theme_preference for per-player theming
+// P0: Include last_seen for disconnect detection
   const players = roomPlayers.map((entry: any) => ({
     id: entry.user_id,
     name: entry.users?.display_name ?? 'Unknown',
     spotify_connected: Boolean(entry.users?.spotify_refresh_token),
     last_seen: entry.last_seen ?? null,
-    theme_preference: entry.theme_preference ?? 'dark',
   }));
 
 // Handle case where playerId is provided but player not found (new player joining)
-  let currentPlayer = null;
+let currentPlayer = null;
   if (playerId) {
     const found = players.find((player) => player.id === playerId);
     if (found) {
@@ -96,5 +95,5 @@ const { data: roomPlayers, error: roomPlayersError } = await supabaseAdmin
     }
   }
 
-return NextResponse.json({ room: roomWithSettings, players, currentPlayer, theme: currentPlayer?.theme_preference ?? 'dark' });
+  return NextResponse.json({ room: roomWithSettings, players, currentPlayer });
 }

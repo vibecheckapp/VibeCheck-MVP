@@ -1,13 +1,15 @@
 :root {
   color-scheme: light;
-  /* UPDATED: Retro Arcade / Comic Game Theme - Retro Vibes */
-  /* Background: Yellow (#fff192) */
-  background: #fff192;
+  /* UPDATED: Retro Arcade - Dark Forest Green Theme */
+  /* Global Background: Dark Retro Forest Green (#1B2E1E) */
+  background: #1B2E1E;
   background-attachment: fixed;
-  /* Text: Dark Blue-Black (#0F172A) - kein reines Schwarz! */
-  color: #0F172A;
+  /* Text: Off-White (#F6F6F0) for contrast on dark green */
+  color: #F6F6F0;
   /* Freundlichere Schriftart als Fallback vor sans-serif hinzugefügt */
   font-family: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  /* NEW: Retro-Yellow as third highlight color */
+  --retro-yellow: #FFD166;
 }
 
 * {
@@ -34,14 +36,15 @@ body {
 }
 
 /* Hero-Card als "Spielzeug"-Card für den Retro Arcade Look */
-/* UPDATED: #ffea61 Yellow for cards */
+/* UPDATED: Medium Console Green (#2E5A3E) for main container */
 .hero {
   max-width: 520px;
   width: 100%;
   border: 4px solid #0F172A;
   border-radius: 24px;
-  padding: 1.5rem 1.25rem;
-  background: #ffea61;
+  /* MORE PADDING: Extra vertical breathing room */
+  padding: 0.75rem 0.75rem 0.75rem;
+  background: #2E5A3E;
   box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
@@ -50,14 +53,14 @@ body {
   font-size: clamp(2.5rem, 4vw, 3.5rem);
   font-weight: 900;
   letter-spacing: -0.03em;
-  text-shadow: 2px 2px 0px #ffea61;
+  text-shadow: 2px 2px 0px #FF6B4A;
 }
 
 .hero p {
-  margin: 0 0 2rem;
+  margin: 0 0 0.5rem;
   line-height: 1.6;
   max-width: 40rem;
-  color: #0F172A;
+  color: #F6F6F0;
   opacity: 0.8;
 }
 
@@ -73,23 +76,24 @@ body {
 }
 
 /* Das Input-Feld im Retro Arcade Look */
+/* UPDATED: Dark green background with light text */
 .entry-form input {
   width: 100%;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1rem;
   border: 4px solid #0F172A;
   border-radius: 16px;
-  background: #FFFFFF;
-  color: #0F172A;
-  font-size: 1rem;
+  background: #1B2E1E;
+  color: #F6F6F0;
+  font-size: 1.2rem;
   outline: none;
   transition: all 0.2s ease;
 }
 
-/* Fokus-Effekt beim Reinklicken - UPDATED to Green #4ADE80 */
+/* Fokus-Effekt beim Reinklicken - UPDATED to Accent Green #3F7553 */
 .entry-form input:focus {
-  border-color: #4ADE80;
-  background: #FFFFFF;
-  box-shadow: 4px 4px 0px 0px #4ADE80;
+  border-color: #3F7553;
+  background: #1B2E1E;
+  box-shadow: 4px 4px 0px 0px #3F7553;
 }
 
 .card-row {
@@ -100,16 +104,17 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
+/* UPDATED: Card Backgrounds - Lighter Green (#3F7553) */
 .card-row > div {
   border: 4px solid #0F172A;
   border-radius: 24px;
   padding: 1.25rem;
-  background: #ffea61;
+  background: #3F7553;
   box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .card {
-  background: #ffea61;
+  background: #3F7553;
   border: 4px solid #0F172A;
   border-radius: 24px;
   box-shadow: 4px 4px 0px 0px #0F172A;
@@ -119,6 +124,7 @@ body {
 .card h2,
 .card h3 {
   margin: 0 0 0.75rem;
+  color: #F6F6F0;
 }
 
 .song-card {
@@ -136,6 +142,15 @@ body {
   margin-bottom: 1rem;
 }
 
+.song-card .track-title {
+  color: #F6F6F0;
+}
+
+.song-card .artist-name {
+  color: #F6F6F0;
+  opacity: 0.8;
+}
+
 .song-card button.button {
   width: min(220px, 100%);
 }
@@ -143,12 +158,14 @@ body {
 .round-title {
   font-size: clamp(3.5rem, 5vw, 5.5rem);
   margin-bottom: 1rem;
+  color: #F6F6F0;
 }
 
 .rating-card {
   margin-top: 1rem;
 }
 
+/* UPDATED: Star row background */
 .rating-row {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -165,9 +182,9 @@ body {
   width: 100%;
   min-width: 0;
   border-radius: 50%;
-  background: #ffea61;
+  background: #3F7553;
   border: 4px solid #0F172A;
-  color: #0F172A;
+  color: #F6F6F0;
   font-size: clamp(1.1rem, 4vw, 1.5rem);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -175,14 +192,14 @@ body {
 
 .star-button:hover,
 .star-button:focus {
-  color: #FFE400;
+  color: #FF6B4A;
   border-color: #0F172A;
   transform: translateY(-2px);
   box-shadow: 6px 6px 0px 0px #0F172A;
 }
 
 .star-button.selected {
-  color: #FFE400;
+  color: #FF6B4A;
   border-color: #0F172A;
 }
 
@@ -193,38 +210,47 @@ body {
 }
 
 .error-message {
-  color: #FF5733;
+  color: #FF6B4A;
   font-weight: 700;
 }
 
 .success-message {
-  color: #4ADE80;
+  color: #3F7553;
   font-weight: 700;
 }
 
 .hint {
-  color: #0F172A;
+  color: #F6F6F0;
   opacity: 0.7;
 }
 
 /* --- Host-Badge in der Spielerliste --- */
+/* UPDATED: Retro-Yellow for host outline */
 .player-card.is-host {
-  border-color: #FFE400;
-  background: rgba(255, 228, 0, 0.15);
+  border-color: var(--retro-yellow);
+  background: rgba(255, 209, 102, 0.2);
+}
+
+/* --- FIX: Play button loading state to prevent flickering --- */
+.play-button.button-loading {
+  opacity: 0.7;
+  cursor: not-allowed !important;
+  animation: none;
 }
 
 /* --- Room Code Copy Button --- */
+/* UPDATED: Card background with light text */
 .room-code-copy-btn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: #ffea61;
+  background: #3F7553;
   border: 4px solid #0F172A;
   border-radius: 12px;
   padding: 0.4rem 0.75rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: #0F172A;
+  color: #F6F6F0;
   box-shadow: 2px 2px 0px 0px #0F172A;
 }
 
@@ -239,14 +265,16 @@ body {
 }
 
 .copy-icon {
-  font-size: 1rem;
+  font-size: 1.3rem;
   opacity: 0.7;
+  color: #F6F6F0;
 }
 
 /* --- Leave Button --- */
+/* UPDATED: Retro Red (#A63F3F) with light text */
 .btn-leave {
-  background: #ffea61;
-  color: #0F172A;
+  background: #A63F3F;
+  color: #F6F6F0;
   border: 2px solid #0F172A;
   padding: 0.35rem 0.5rem;
   font-size: 0.75rem;
@@ -263,6 +291,7 @@ body {
 }
 
 /* --- Minimal Spotify Card --- */
+/* UPDATED: Card background with light text */
 .spotify-card-minimal {
   display: flex;
   flex-direction: column;
@@ -280,8 +309,8 @@ body {
 }
 
 .host-badge {
-  margin-right: 0.4rem;
-  font-size: 1rem;
+  margin-right: 0.5rem;
+  font-size: 1.2rem;
 }
 
 .player-spotify-controls {
@@ -301,6 +330,8 @@ body {
   order: 1;
 }
 
+/* --- Spotify Connect Button --- */
+/* UPDATED: Secondary Accent Purple (#8E73C1) with light text */
 .spotify-connect-cta {
   display: inline-flex;
   align-items: center;
@@ -308,10 +339,10 @@ body {
   padding: 0.38rem 0.72rem;
   border-radius: 999px;
   border: 4px solid #0F172A;
-  background: #4ADE80;
-  color: #0F172A;
+  background: #9b51e9;
+  color: #F6F6F0;
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 2px 2px 0px 0px #0F172A;
@@ -333,13 +364,14 @@ body {
 }
 
 /* --- Szenario-Dropdown --- */
+/* UPDATED: Dark green background with light text */
 .scenario-select {
   width: 100%;
   padding: 1rem 1.25rem;
   border: 4px solid #0F172A;
   border-radius: 16px;
-  background: #FFFFFF;
-  color: #0F172A;
+  background: #1B2E1E;
+  color: #F6F6F0;
   font-size: 1rem;
   outline: none;
   transition: all 0.2s ease;
@@ -348,13 +380,13 @@ body {
 }
 
 .scenario-select:focus {
-  border-color: #4ADE80;
-  box-shadow: 4px 4px 0px 0px #4ADE80;
+  border-color: #3F7553;
+  box-shadow: 4px 4px 0px 0px #3F7553;
 }
 
 .scenario-select option {
-  background: #FFFFFF;
-  color: #0F172A;
+  background: #1B2E1E;
+  color: #F6F6F0;
 }
 
 .scenario-custom-input {
@@ -362,18 +394,19 @@ body {
   padding: 0.75rem 1rem;
   border: 4px solid #0F172A;
   border-radius: 12px;
-  background: #FFFFFF;
-  color: #0F172A;
+  background: #1B2E1E;
+  color: #F6F6F0;
   font-size: 0.9rem;
   outline: none;
 }
 
 .scenario-custom-input::placeholder {
-  color: #0F172A;
+  color: #F6F6F0;
   opacity: 0.5;
 }
 
 /* --- Slider-Rating 1-10 --- */
+/* Original spacing between slider elements */
 .slider-rating-wrapper {
   display: flex;
   align-items: center;
@@ -395,9 +428,18 @@ body {
 .slider-label-right {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #0F172A;
+  color: #F6F6F0;
   min-width: 20px;
   text-align: center;
+}
+
+/* INWARD: Push labels inward to align with slider track */
+.slider-label-left {
+  margin-right: 4px;
+}
+
+.slider-label-right {
+  margin-left: 4px;
 }
 
 .rating-slider-container {
@@ -414,8 +456,8 @@ body {
   appearance: none;
   height: 8px;
   border-radius: 8px;
-  /* NEW: Orange to Green gradient for Retro theme */
-  background: linear-gradient(90deg, #FF5733, #4ADE80);
+  /* UPDATED: Orange to Light Green gradient for Retro theme */
+  background: linear-gradient(90deg, #FF6B4A, #3F7553);
   outline: none;
   cursor: pointer;
   border: 2px solid #0F172A;
@@ -427,48 +469,37 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #FFE400;
+  background: #FF6B4A;
   cursor: pointer;
   transition: transform 0.15s ease;
-  /* Center content */
-  display: flex;
-  align-items: center;
-  justify-content: center;
   /* Border for contrast */
   border: 4px solid #0F172A;
   box-shadow: 4px 4px 0px 0px #0F172A;
-  /* Position for pseudo-element */
+  /* Position relative for pseudo-element */
   position: relative;
+  z-index: 2;
 }
 
-/* Display the value number inside the thumb - uses CSS custom property updated by JS */
-.rating-slider::-webkit-slider-thumb::after {
+/* Display the value number inside the thumb using CSS custom property */
+.rating-slider::-webkit-slider-thumb::before {
   content: var(--thumb-value, "5");
-  /* Position absolutely within the thumb for centering */
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   color: #0F172A;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 800;
   font-family: system-ui, -apple-system, sans-serif;
   line-height: 1;
-}
-
-.rating-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.15);
+  pointer-events: none;
 }
 
 .rating-slider::-moz-range-thumb {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #FFE400;
+  background: #FF6B4A;
   cursor: pointer;
   border: 4px solid #0F172A;
   display: flex;
@@ -480,11 +511,12 @@ body {
 .slider-thumb-value {
   position: absolute;
   top: 50%;
-  transform: translateY(-50%);
+  /* Transform to center vertically and horizontally over the thumb */
+  transform: translate(-50%, -50%);
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #FFE400;
+  background: #FF6B4A;
   color: #0F172A;
   font-size: 0.72rem;
   font-weight: 800;
@@ -493,27 +525,39 @@ body {
   justify-content: center;
   line-height: 1;
   pointer-events: none;
-  z-index: 2;
+  z-index: 3;
   border: 3px solid #0F172A;
+  box-shadow: 2px 2px 0px 0px #0F172A;
+  font-family: system-ui, -apple-system, sans-serif;
+  /* Left position is controlled by React inline style - left: 0% to 100% maps to track */
+  transition: left 0.1s ease-out;
+  /* Start hidden until React sets position */
+  left: -999px;
+}
+
+/* Position the value display over the slider thumb - ensure container is relative */
+.rating-slider-container {
+  position: relative;
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
 }
 
 .rating-slider:disabled {
-  opacity: 0.5;
+  opacity: 1;
   cursor: not-allowed;
 }
 
 /* --- NEW: Pristine slider state (before player touches it) --- */
-/* NEW: Orange to Green gradient - faded for pristine */
-.rating-slider-container.is-pristine .rating-slider {
-  background: linear-gradient(90deg, rgba(255, 87, 51, 0.3), rgba(74, 222, 128, 0.3));
-}
-
+/* Gradient always stays at full opacity - only thumb changes to gray when pristine */
 .rating-slider-container.is-pristine .rating-slider::-webkit-slider-thumb {
-  background: rgba(255, 228, 0, 0.5);
+  /* Gray thumb before player touches the slider */
+  background: #808080;
 }
 
 .rating-slider-container.is-pristine .rating-slider::-moz-range-thumb {
-  background: rgba(255, 228, 0, 0.5);
+  /* Gray thumb before player touches the slider */
+  background: #808080;
 }
 
 .rating-value-display {
@@ -525,7 +569,7 @@ body {
 .rating-big-number {
   font-size: 2.5rem;
   font-weight: 900;
-  color: #4ADE80;
+  color: #FF6B4A;
 }
 
 /* --- Button-Varianten --- */
@@ -538,14 +582,14 @@ body {
 }
 
 .room-code-label {
-  font-size: 0.95rem;
-  color: #0F172A;
+  font-size: 1.1rem;
+  color: #F6F6F0;
 }
 
 /* --- Submit-Vote-Button über dem Slider zentriert --- */
 .rating-box-card .submit-vote-button {
   display: flex;
-  margin: 0 auto 0.75rem;
+  margin: 0 auto 0rem;
 }
 
 @media (max-width: 720px) {
@@ -565,14 +609,14 @@ body {
 }
 
 /* --- RETRO ARCADE Button mit 3D-Style --- */
-/* UPDATED: #FF5733 Pop Orange - Retro Arcade Energy */
-/* UPDATED: Text color changed from #FFFFFF to #0F172A for better readability on yellow/orange backgrounds */
+/* UPDATED: #FF6B4A Pop Orange - Retro Arcade Energy (keep as primary accent!) */
+/* Text stays black on orange for contrast */
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 1rem 2rem;
-  background: #FF5733;
+  background: #FF6B4A;
   color: #0F172A;
   text-decoration: none;
   border-radius: 9999px; /* Pillenförmig */
@@ -586,13 +630,13 @@ body {
 }
 
 .button:hover {
-  background: #FF6B4A;
+  background: #FF8B6A;
   transform: translateY(-2px);
   box-shadow: 6px 6px 0px 0px #0F172A;
 }
 
 .button:active {
-  background: #E64A1F;
+  background: #E55A3A;
   transform: translateY(4px);
   box-shadow: 0px 0px 0px 0px #0F172A;
 }
@@ -602,9 +646,9 @@ body {
 button.btn-ghost,
 .button.btn-ghost {
   background: transparent;
-  color: #0F172A;
+  color: #F6F6F0;
   border: 2px solid #0F172A;
-  padding: 0.35rem 0.6rem;
+  padding: 0.6rem 0.6rem;
   font-size: 0.75rem;
   box-shadow: 2px 2px 0px 0px #0F172A;
 }
@@ -621,16 +665,20 @@ button.btn-sm,
 }
 
 .btn-primary {
-  background: #FF5733;
+  background: #FF6B4A;
   color: #0F172A;
 }
 
 .btn-full {
   width: 100%;
+  padding: 0.5rem;
+  font-weight: 1000;
 }
 
 .actions .button {
   width: 100%;
+  padding: 1rem;
+  margin: 0;
 }
 
 @media (min-width: 721px) {
@@ -662,11 +710,12 @@ button.btn-sm,
 
 
 /* Die Box für den Runden-Titel (gleicher Look wie die anderen Boxen) */
+/* UPDATED: Lighter green card background with light text */
 .settings-box {
   border: 4px solid #0F172A;
   border-radius: 24px;
   padding: 1rem;
-  background: #ffea61;
+  background: #3F7553;
   margin-top: 1rem;
   margin-bottom: 1rem;
   box-shadow: 4px 4px 0px 0px #0F172A;
@@ -677,32 +726,33 @@ button.btn-sm,
   display: block;
   font-weight: 600;
   margin-bottom: 0.65rem;
-  color: #0F172A;
+  color: #F6F6F0;
   font-size: 0.95rem;
 }
 
 /* Das Eingabefeld selbst im Retro Look */
+/* UPDATED: Dark green background with light text */
 .settings-box input[type="text"] {
   width: 100%;
   padding: 1rem 1.25rem;
   border: 4px solid #0F172A;
   border-radius: 16px;
-  background: #FFFFFF;
-  color: #0F172A;
+  background: #1B2E1E;
+  color: #F6F6F0;
   font-size: 1rem;
   outline: none;
   transition: all 0.2s ease;
 }
 
-/* Leuchtet dezent grün auf, wenn man reinklickt - UPDATED to Green #4ADE80 */
+/* Leuchtet dezent grün auf, wenn man reinklickt - UPDATED to #3F7553 */
 .settings-box input[type="text"]:focus {
-  border-color: #4ADE80;
-  box-shadow: 4px 4px 0px 0px #4ADE80;
+  border-color: #3F7553;
+  box-shadow: 4px 4px 0px 0px #3F7553;
 }
 
 /* Macht den Platzhaltertext lesbar */
 .settings-box input::placeholder {
-  color: #0F172A;
+  color: #F6F6F0;
   opacity: 0.5;
 }
 
@@ -716,13 +766,14 @@ button.btn-sm,
 }
 
 /* Die einzelne Spieler-Kachel */
+/* UPDATED: Light green card background with light text */
 .player-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.65rem;
-  padding: 0.75rem 1rem;
-  background: #ffea61;
+  padding: 0.75rem 0.5rem;
+  background: #3F7553;
   border: 4px solid #0F172A;
   border-radius: 16px;
   transition: all 0.2s ease;
@@ -735,57 +786,37 @@ button.btn-sm,
   align-items: center;
 }
 
-/* Hebt den aktuellen Zustand des Spielers (du) hervor - Green #4ADE80 */
+/* Hebt den aktuellen Zustand des Spielers (du) hervor - Orange #FF6B4A */
 .player-card.is-me {
-  border-color: #4ADE80;
-  background: rgba(74, 222, 128, 0.2);
+  border-color: #FF6B4A;
+  background: rgba(255, 107, 74, 0.2);
 }
 
 .player-name {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #0F172A;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #F6F6F0;
 }
 
-/* Basis-Styling für das Spotify-Status-Icon */
+/* Basis-Styling für das Spotify-Status-Icon - Größer gemacht bei gleichbleibender Box */
 .spotify-status-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
 }
 
-/* Wenn Spotify verbunden ist: Bright Green #4ADE80 */
+/* Wenn Spotify verbunden ist: Retro-Yellow for accent */
 .spotify-status-icon.connected {
-  color: #4ADE80;
+  color: var(--retro-yellow);
 }
 
-/* Wenn Spotify NICHT verbunden ist: Diskretes Grau */
+/* Wenn Spotify NICHT verbunden ist: Light gray */
 .spotify-status-icon.disconnected {
-  color: #0F172A;
-  opacity: 0.3;
+  color: #F6F6F0;
+  opacity: 0.4;
   cursor: default;
-}
-
-/* Button-Style für clickbares Spotify-Icon */
-.spotify-status-icon {
-  background: transparent;
-  border: none;
-  border-radius: 50%;
-  padding: 4px;
-  transition: all 0.2s ease;
-}
-
-.spotify-status-icon:hover {
-  background: rgba(74, 222, 128, 0.2);
-  transform: scale(1.04);
-}
-
-.spotify-status-icon.disconnected:hover {
-  background: rgba(255, 255, 255, 0.3);
-  color: #0F172A;
-  opacity: 0.5;
 }
 
 
@@ -796,46 +827,56 @@ button.btn-sm,
   font-weight: 800;
   margin: 0 0 0.5rem 0;
   width: 100%;
+  color: #F6F6F0;
 }
 
+/* Original spacing between main elements */
 .round-hero {
   display: flex;
   flex-direction: column;
-  gap: 1rem; /* Engere Abstände zwischen den Kacheln */
+  gap: 0.05rem;
   align-items: center;
   width: 100%;
-  padding-top: 0.5rem;
+  font-weight: 1000;
 }
 
 /* Track Card weiter an den Rand gezogen */
-/* UPDATED: #ffea61 Yellow */
+/* COMPACT: Reduced padding and margin - OPTIMIZED: tighter vertical spacing */
 .track-card.scenario-2 {
-  background: #ffea61;
+  background: #3F7553;
   border: 4px solid #0F172A;
   border-radius: 24px;
-  padding: 1rem;
+  padding: 0.5rem 1rem 0.15rem;
   width: 100%;
   max-width: 440px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
-/* Kleinerer Abstand unter dem Playernamen */
+/* Kleinerer Abstand unter dem Playernamen - OPTIMIZED: reduced for tighter layout */
+/* Dynamic font scaling for player-display */
 .player-display {
-  font-size: 1rem;
-  color: #0F172A;
-  margin: 0 0 0.75rem 0;
+  font-size: clamp(0.85rem, 3vw, 1rem);
+  color: #F6F6F0;
+  margin: 0;
   text-align: center;
+  /* Ensure single line with ellipsis - works with dynamic scaling */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  width: 100%;
+  display: block;
 }
 
 .track-stack {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem; /* Reduced from 0.75rem */
+  gap: 1rem; /* OPTIMIZED: more space between cover and title */
   width: 100%;
 }
 
@@ -852,7 +893,7 @@ button.btn-sm,
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 16px;
-  background: #FFFFFF;
+  background: #2E5A3E;
   border: 4px solid #0F172A;
   display: flex;
   align-items: center;
@@ -861,29 +902,65 @@ button.btn-sm,
 }
 
 /* Kleinerer Abstand zum Play-Button */
+/* OPTIMIZED: Reduced spacing - minimal from cover, space between title/artist */
 .track-text-stacked {
   text-align: center;
-  margin: 0.25rem 0 0.5rem 0;
+  margin: 0 0 0 0;
+}
+
+/* COMPACT: Reduced spacing between player display and cover art - REMOVED DUPLICATE */
+
+/* OPTIMIZED: More space between title and artist, single line with scroll if too long */
+/* NEW: Marquee effect for long song titles - Spotify style */
+/* FIXED: Remove dark background to match lighter theme, use transparent */
+.track-text-stacked {
+  text-align: center;
+  margin: 0;
+  /* Gap to border */
+  padding: 0.2rem 0.5rem;
+  background: transparent;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 100%;
+  /* Ensure text scales dynamically to fit container */
+  overflow: hidden;
 }
 
 .track-text-stacked h3 {
   font-size: 1.35rem;
   font-weight: 700;
-  margin: 0 0 0.15rem 0;
-  color: #0F172A;
+  margin: 0 0 0.35rem 0;
+  color: #F6F6F0;
+  line-height: 1.2;
+  white-space: nowrap;
+  /* Hide overflow */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.2s ease;
+}
+
+/* When title is too long, show ellipsis */
+.track-text-stacked h3 {
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 
 .artist-name {
   font-size: 0.95rem;
-  color: #0F172A;
-  opacity: 0.7;
+  color: #F6F6F0;
+  opacity: 0.8;
   margin: 0;
+  /* Ensure single line with ellipsis */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .play-button {
   width: 100%;
   border-radius: 9999px;
-  background: #4ADE80;
+  background: #3F7553;
   border: 4px solid #0F172A;
   box-shadow: 4px 4px 0px 0px #0F172A;
 }
@@ -893,22 +970,23 @@ button.btn-sm,
 }
 
 /* Bewertungs-Box breiter und kompakter */
-/* UPDATED: #ffea61 Yellow */
+/* COMPACT: Reduced padding and margin for tighter layout */
 .card.rating-box-card {
-  background: #ffea61;
+  background: #3F7553;
   border: 4px solid #0F172A;
   border-radius: 24px;
-  padding: 1rem 1.25rem;
+  padding: 0.5rem 1rem;
   width: 100%;
   max-width: 440px;
   box-sizing: border-box;
-  margin-bottom: 1rem;
+  margin-bottom: 0.25rem;
+  margin-top: 0.5rem;
   box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 /* Compact voting box - reduced height */
 .card.rating-box-card.compact {
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 1rem;
 }
 
 .rating-row {
@@ -924,7 +1002,7 @@ button.btn-sm,
   gap: 0.25rem;
   flex-grow: 1;
   justify-content: space-around;
-  background: #ffea61;
+  background: #2E5A3E;
   padding: 0.5rem;
   border-radius: 12px;
   border: 4px solid #0F172A;
@@ -941,17 +1019,17 @@ button.btn-sm,
 }
 
 .success-message-compact {
-  color: #4ADE80;
+  color: #3F7553;
   font-weight: 700;
 }
 
 .error-message-compact {
-  color: #FF5733;
+  color: #FF6B4A;
   font-weight: 700;
 }
 
 .vote-count-compact {
-  color: #0F172A;
+  color: #F6F6F0;
   opacity: 0.5;
   margin-left: auto;
 }
@@ -965,12 +1043,13 @@ button.btn-sm,
   align-items: center;
   margin-top: 1rem;
   gap: 0.75rem;
+  box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .next-button {
   width: 100%;
   border-radius: 9999px;
-  background-color: #FF5733 !important;
+  background-color: var(--retro-yellow) !important;
   color: #0F172A;
   font-weight: 800;
   text-transform: uppercase;
@@ -980,10 +1059,11 @@ button.btn-sm,
 }
 
 /* Task 1: Host controls stack - Play button + Next Player button */
+/* COMPACT: Reduced gap between buttons */
 .host-controls-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
   width: 100%;
 }
 
@@ -994,10 +1074,10 @@ button.btn-sm,
 }
 
 /* Task 3: Pause button styling */
-/* UPDATED: #FF5733 Orange and #4ADE80 Green */
+/* UPDATED: #FF6B4A Orange and #3F7553 Light Green */
 .pause-button {
-  background: rgba(255, 87, 51, 0.15);
-  color: #FF5733;
+  background: rgba(255, 107, 74, 0.15);
+  color: #FF6B4A;
   border: 4px solid #0F172A;
   padding: 0.75rem 1.5rem;
   border-radius: 9999px;
@@ -1015,61 +1095,30 @@ button.btn-sm,
 }
 
 .pause-button.paused {
-  background: rgba(74, 222, 128, 0.2);
+  background: rgba(63, 117, 83, 0.2);
   border-color: #0F172A;
-  color: #4ADE80;
+  color: #FF6B4A;
 }
 
 .pause-button.paused:hover {
-  background: rgba(74, 222, 128, 0.3);
+  background: rgba(63, 117, 83, 0.3);
 }
 
-
-/* --- NEU: Optimierte Sterne & Haken-Design --- */
-
-/* Die einzelnen Buttons in der Sternen-Leiste */
-.stars-wrapper .star-button {
-  background: transparent;
-  border: none;
-  padding: 0;
-  margin: 0;
-  width: auto;
-  height: auto;
-  aspect-ratio: auto;
-  font-size: clamp(1.5rem, 5vw, 2.2rem);
-  color: #0F172A;
-  opacity: 0.3;
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-  cursor: pointer;
-}
-
-/* Hover-Effekt für die Sterne */
-.stars-wrapper .star-button:hover {
-  transform: scale(1.15) rotate(4deg);
-  color: #FFE400;
-  opacity: 1;
-}
-
-/* Wenn ein Stern ausgewählt ist */
-.stars-wrapper .star-button.selected {
-  color: #FFE400;
-  opacity: 1;
-}
 
 /* Der Bestätigungshaken (Checkbox/Button daneben) */
-/* UPDATED: #4ADE80 Green accent */
+/* UPDATED: #3F7553 Light Green accent */
 .submit-vote-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #4ADE80;
+  background: #3F7553;
   border: 4px solid #0F172A;
   border-radius: 14px;
   width: 48px;
   height: 48px;
   min-width: 48px;
   cursor: pointer;
-  color: #0F172A;
+  color: #F6F6F0;
   transition: all 0.2s ease;
   box-shadow: 3px 3px 0px 0px #0F172A;
 }
@@ -1081,10 +1130,9 @@ button.btn-sm,
 }
 
 /* Wenn die Bewertung abgegeben wurde (aktiviert) */
-/* UPDATED: #FF5733 Orange voted state */
-/* UPDATED: Text color changed from #FFFFFF to #0F172A for better readability on yellow/orange backgrounds */
+/* UPDATED: Retro-Yellow voted state for checkmark */
 .submit-vote-button.voted {
-  background: #FF5733;
+  background: var(--retro-yellow);
   border-color: #0F172A;
   color: #0F172A;
 }
@@ -1105,7 +1153,7 @@ button.btn-sm,
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-top: 1.25rem;
+  margin-top: 1rem;
 }
 
 .scoreboard-row-card {
@@ -1113,7 +1161,7 @@ button.btn-sm,
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: #ffea61;
+  background: #3F7553;
   border: 4px solid #0F172A;
   border-radius: 24px;
   transition: all 0.2s ease;
@@ -1137,20 +1185,20 @@ button.btn-sm,
   justify-content: center;
   border-radius: 50%;
   background: #0F172A;
-  color: #E0F2FE;
+  color: #F6F6F0;
 }
 
 /* Spezial-Styles für die Top 3 mit Fireworks für #1 */
-/* UPDATED: #FFE400 Bright Yellow for 1st place */
+/* UPDATED: Lighter green for 1st place */
 .scoreboard-row-card.rank-1 {
-  background: linear-gradient(135deg, rgba(255, 228, 0, 0.2) 0%, #ffea61 100%);
-  border-color: #FFE400;
-  box-shadow: 4px 4px 0px 0px #FFE400;
+  background: linear-gradient(135deg, rgba(255, 107, 74, 0.2) 0%, #3F7553 100%);
+  border-color: #FF6B4A;
+  box-shadow: 4px 4px 0px 0px #FF6B4A;
   position: relative;
   overflow: visible;
 }
 .scoreboard-row-card.rank-1 .score-rank {
-  background: #FFE400;
+  background: #FF6B4A;
   color: #0F172A;
 }
 
@@ -1206,7 +1254,7 @@ button.btn-sm,
 .scoreboard-row-card.rank-1::after {
   content: '✨';
   position: absolute;
-  font-size: 1rem;
+  font-size: 2rem;
   animation: sparkle 1.5s ease-in-out infinite;
   pointer-events: none;
 }
@@ -1234,13 +1282,13 @@ button.btn-sm,
 }
 
 .scoreboard-row-card.rank-2 .score-rank {
-  background: #cbd5e1;
-  color: #13042b;
+  background: #8E73C1;
+  color: #F6F6F0;
 }
 
 .scoreboard-row-card.rank-3 .score-rank {
-  background: #b45309;
-  color: #0F172A;
+  background: #A63F3F;
+  color: #F6F6F0;
 }
 
 /* Song-Miniatur */
@@ -1264,13 +1312,13 @@ button.btn-sm,
 .score-player-name {
   font-size: 1.05rem;
   font-weight: 700;
-  color: #0F172A;
+  color: #F6F6F0;
 }
 
 .score-track-details {
   font-size: 0.85rem;
-  color: #0F172A;
-  opacity: 0.7;
+  color: #F6F6F0;
+  opacity: 0.8;
   white-space: nowrap;
   overflow: hidden;
   text-transform: capitalize;
@@ -1290,31 +1338,32 @@ button.btn-sm,
   align-items: center;
   justify-content: center;
   padding: 1rem 2rem;
-  background: #ffea61;
+  background: #3F7553;
   border: 4px solid #0F172A;
   border-radius: 999px;
-  color: #0F172A;
+  color: #F6F6F0;
   font-size: 0.9rem;
   font-weight: 600;
   box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
 .score-total-pts {
-  font-size: 1.8rem;
-  font-weight: 800;
-  color: #4ADE80;
+  font-size: 2rem;
+  font-weight: 1000;
+  /* UPDATED: Retro-Yellow for score display - high contrast retro feeling */
+  color: var(--retro-yellow);
 }
 
 .score-vote-count {
   font-size: 0.75rem;
-  color: #0F172A;
+  color: #F6F6F0;
   opacity: 0.7;
 }
 
 .score-average {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #4ADE80;
+  color: #FF6B4A;
   margin-left: 0.5rem;
 }
 
@@ -1322,6 +1371,7 @@ button.btn-sm,
 .disconnected-badge {
   font-size: 0.75rem;
   margin-right: 0.25rem;
+  color: #A63F3F;
 }
 
 /* --- P0: Loading state for Next Player button --- */
@@ -1337,7 +1387,7 @@ button.btn-sm,
   align-items: center;
   gap: 0.5rem;
   padding: 1.5rem 2rem;
-  background: #ffea61;
+  background: #3F7553;
   border: 4px solid #0F172A;
   border-radius: 16px;
   box-shadow: 4px 4px 0px 0px #0F172A;
@@ -1346,22 +1396,22 @@ button.btn-sm,
 .transition-timer {
   font-size: 3rem;
   font-weight: 900;
-  color: #4ADE80;
+  color: #FF6B4A;
   line-height: 1;
 }
 
 .transition-label {
   font-size: 0.9rem;
-  color: #0F172A;
+  color: #F6F6F0;
   opacity: 0.7;
 }
 
 /* Phase 1.5.3: Pause/Resume button */
-/* UPDATED: Using new party game palette */
+/* UPDATED: Using new retro arcade palette */
 .pause-resume-button {
-  background: rgba(255, 228, 0, 0.2);
+  background: rgba(255, 107, 74, 0.2);
   border: 4px solid #0F172A;
-  color: #FFE400;
+  color: #FF6B4A;
   padding: 0.6rem 1rem;
   font-size: 0.85rem;
   border-radius: 9999px;
@@ -1369,13 +1419,13 @@ button.btn-sm,
 }
 
 .pause-resume-button:hover {
-  background: rgba(244, 224, 77, 0.3);
+  background: rgba(255, 107, 74, 0.3);
 }
 
 .pause-resume-button.paused {
-  background: rgba(74, 222, 128, 0.25);
+  background: rgba(63, 117, 83, 0.25);
   border: 4px solid #0F172A;
-  color: #4ADE80;
+  color: #3F7553;
 }
 
 .paused-indicator {
@@ -1383,7 +1433,7 @@ button.btn-sm,
   justify-content: center;
   align-items: center;
   padding: 0.75rem 1.5rem;
-  background: rgba(255, 228, 0, 0.15);
+  background: rgba(255, 107, 74, 0.15);
   border: 4px solid #0F172A;
   border-radius: 12px;
   margin-top: 0.5rem;
@@ -1393,7 +1443,7 @@ button.btn-sm,
 .paused-indicator span {
   font-size: 1rem;
   font-weight: 600;
-  color: #FFE400;
+  color: #FF6B4A;
 }
 
 /* --- NEW: Round header during gameplay --- */
@@ -1408,8 +1458,9 @@ button.btn-sm,
 }
 
 /* --- NEW: Settings icon button --- */
+/* UPDATED: Orange accent for retro arcade */
 .settings-icon-btn {
-  background: #ffea61;
+  background: #FF6B4A;
   border: 4px solid #0F172A;
   border-radius: 12px;
   padding: 0.4rem 0.5rem;
@@ -1418,10 +1469,11 @@ button.btn-sm,
   color: #0F172A;
   font-size: 1.1rem;
   box-shadow: 2px 2px 0px 0px #0F172A;
+  margin-bottom: 0.75rem;
 }
 
 .settings-icon-btn:hover {
-  background: #FFE400;
+  background: #FF8B6A;
   transform: translateY(-2px) rotate(30deg);
   box-shadow: 4px 4px 0px 0px #0F172A;
 }
@@ -1437,38 +1489,40 @@ button.btn-sm,
 }
 
 /* --- NEW: Disconnected badge --- */
+/* UPDATED: Red accent for retro arcade */
 .disconnected-badge {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 0.75rem;
-  background: rgba(255, 107, 107, 0.15);
-  border: 1px solid rgba(255, 107, 107, 0.3);
+  background: rgba(166, 63, 63, 0.2);
+  border: 1px solid rgba(166, 63, 63, 0.3);
   border-radius: 999px;
   font-size: 0.75rem;
-  color: #ff6b6b;
+  color: #F6F6F0;
 }
 
 .disconnected-names {
-  color: rgba(255, 255, 255, 0.5);
+  color: #F6F6F0;
+  opacity: 0.5;
 }
 
 /* --- NEW: Timer badge --- */
-/* UPDATED: Green #4ADE80 */
+/* UPDATED: Orange accent */
 .timer-badge {
   padding: 0.4rem 0.75rem;
-  background: rgba(74, 222, 128, 0.25);
+  background: rgba(255, 107, 74, 0.25);
   border: 4px solid #0F172A;
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #4ADE80;
+  color: #FF6B4A;
 }
 
 .timer-badge.transition-timer {
-  background: rgba(255, 228, 0, 0.2);
+  background: rgba(255, 107, 74, 0.2);
   border-color: #0F172A;
-  color: #FFE400;
+  color: #FF6B4A;
 }
 
 /* --- NEW: Settings modal --- */
@@ -1478,7 +1532,7 @@ button.btn-sm,
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1486,8 +1540,9 @@ button.btn-sm,
   backdrop-filter: blur(4px);
 }
 
+/* UPDATED: Modal background - Medium Console Green */
 .settings-modal {
-  background: #ffea61;
+  background: #2E5A3E;
   border: 4px solid #0F172A;
   border-radius: 24px;
   padding: 1.5rem;
@@ -1509,13 +1564,13 @@ button.btn-sm,
   margin: 0;
   font-size: 1.25rem;
   font-weight: 800;
-  color: #0F172A;
+  color: #F6F6F0;
 }
 
 .close-btn {
   background: transparent;
   border: none;
-  color: #0F172A;
+  color: #F6F6F0;
   font-size: 1.5rem;
   cursor: pointer;
   padding: 0.25rem 0.5rem;
@@ -1524,7 +1579,7 @@ button.btn-sm,
 }
 
 .close-btn:hover {
-  color: #FF5733;
+  color: #FF6B4A;
   transform: scale(1.1);
 }
 
@@ -1542,7 +1597,7 @@ button.btn-sm,
 
 .settings-section label {
   font-size: 0.85rem;
-  color: #0F172A;
+  color: #F6F6F0;
 }
 
 .room-code-display {
@@ -1550,21 +1605,21 @@ button.btn-sm,
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background: #ffea61;
+  background: #3F7553;
   border: 4px solid #0F172A;
   border-radius: 12px;
-  color: #0F172A;
+  color: #F6F6F0;
   box-shadow: 2px 2px 0px 0px #0F172A;
 }
 
 .room-code-display strong {
   font-size: 1.25rem;
   letter-spacing: 0.1em;
-  color: #0F172A;
+  color: #F6F6F0;
 }
 
 .copy-btn-small {
-  background: #FFE400;
+  background: #FF6B4A;
   border: 3px solid #0F172A;
   cursor: pointer;
   padding: 0.25rem;
@@ -1585,6 +1640,7 @@ button.btn-sm,
   align-items: center;
   justify-content: center;
   padding: 2rem;
+  color: #F6F6F0;
 }
 
 .error-container {
@@ -1593,11 +1649,11 @@ button.btn-sm,
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: #FFEBEE;
-  border: 4px solid #FF5733;
+  background: rgba(166, 63, 63, 0.2);
+  border: 4px solid #A63F3F;
   border-radius: 16px;
   margin-bottom: 1rem;
-  color: #FF5733;
+  color: #F6F6F0;
   box-shadow: 4px 4px 0px 0px #0F172A;
 }
 
@@ -1608,7 +1664,7 @@ button.btn-sm,
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1618,17 +1674,19 @@ button.btn-sm,
 }
 
 .modal-content {
-  background: #ffea61;
+  background: #2E5A3E;
   border: 4px solid #0F172A;
   border-radius: 24px;
-  padding: 1.5rem;
+  /* COMPACT: Less vertical padding */
+  padding: 1rem 1.5rem;
   max-width: 400px;
   width: 100%;
   max-height: 85vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  /* COMPACT: Reduced gap between elements */
+  gap: 0.75rem;
   box-shadow: 6px 6px 0px 0px #0F172A;
 }
 
@@ -1637,20 +1695,20 @@ button.btn-sm,
   font-size: 1.5rem;
   font-weight: 800;
   text-align: center;
-  color: #0F172A;
+  color: #F6F6F0;
 }
 
 .modal-content h3 {
   margin: 0 0 0.5rem;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #0F172A;
+  color: #F6F6F0;
 }
 
 .setting-label {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #0F172A;
+  color: #F6F6F0;
   margin-bottom: 0.5rem;
 }
 
@@ -1660,14 +1718,15 @@ button.btn-sm,
   gap: 0.75rem;
   cursor: pointer;
   font-size: 0.9rem;
-  color: #0F172A;
+  color: #F6F6F0;
   font-weight: 600;
+  
 }
 
 .toggle-label input[type="checkbox"] {
   width: 20px;
   height: 20px;
-  accent-color: #4ADE80;
+  accent-color: #FF6B4A;
   cursor: pointer;
 }
 
@@ -1682,10 +1741,10 @@ button.btn-sm,
 .setting-sub input[type="number"] {
   width: 60px;
   padding: 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 2px solid #0F172A;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: #1B2E1E;
+  color: #F6F6F0;
   font-size: 0.9rem;
   text-align: center;
 }
@@ -1693,17 +1752,17 @@ button.btn-sm,
 .scenario-input {
   width: 100%;
   padding: 0.75rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 2px solid #0F172A;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: #1B2E1E;
+  color: #F6F6F0;
   font-size: 0.9rem;
   outline: none;
   margin-bottom: 0.5rem;
 }
 
 .scenario-input:focus {
-  border-color: #0B6E4F;
+  border-color: #3F7553;
 }
 
 .btn-small {
@@ -1722,18 +1781,18 @@ button.btn-sm,
 
 .suggestions-list li {
   padding: 0.5rem 0.75rem;
-  background: #FFFFFF;
+  background: #3F7553;
   border: 2px solid #0F172A;
   border-radius: 8px;
   font-size: 0.85rem;
-  color: #0F172A;
+  color: #F6F6F0;
 }
 
 .suggestions-list .by-player {
   display: block;
   font-size: 0.75rem;
-  color: #0F172A;
-  opacity: 0.6;
+  color: #F6F6F0;
+  opacity: 0.7;
   margin-top: 0.25rem;
 }
 
@@ -1744,7 +1803,7 @@ button.btn-sm,
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1755,19 +1814,20 @@ button.btn-sm,
 .paused-message {
   text-align: center;
   padding: 2rem;
-  background: rgba(244, 224, 77, 0.1);
-  border: 1px solid rgba(244, 224, 77, 0.3);
+  background: rgba(255, 107, 74, 0.1);
+  border: 1px solid rgba(255, 107, 74, 0.3);
   border-radius: 20px;
 }
 
 .paused-message h2 {
   font-size: 2rem;
-  color: #F4E04D;
+  color: #FF6B4A;
   margin: 0 0 0.5rem;
 }
 
 .paused-message p {
-  color: rgba(255, 255, 255, 0.6);
+  color: #F6F6F0;
+  opacity: 0.7;
   margin: 0;
 }
 
@@ -1778,7 +1838,7 @@ button.btn-sm,
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.9);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   z-index: 900;
@@ -1792,8 +1852,8 @@ button.btn-sm,
   transform: translate(-50%, -50%);
   text-align: center;
   padding: 2.5rem 3rem;
-  background: rgba(61, 64, 91, 0.95);
-  border: 1px solid rgba(244, 224, 77, 0.4);
+  background: #2E5A3E;
+  border: 4px solid rgba(255, 107, 74, 0.4);
   border-radius: 24px;
   z-index: 950;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -1801,24 +1861,30 @@ button.btn-sm,
 
 .paused-foreground-message h2 {
   font-size: 2.5rem;
-  color: #F4E04D;
+  color: #FF6B4A;
   margin: 0 0 0.75rem;
 }
 
 .paused-foreground-message p {
-  color: rgba(255, 255, 255, 0.6);
+  color: #F6F6F0;
+  opacity: 0.7;
   margin: 0;
   font-size: 1.1rem;
 }
 
 /* --- NEXT PLAYER BUTTON STATES --- */
 
+/* Main next button - ensure deep black text on orange background */
+.next-button {
+  color: #0F172A;
+}
+
 /* Disabled/gray state for Next Player button */
-/* UPDATED: Dark color for readability on yellow background when disabled */
+/* UPDATED: Red for disabled state */
 .next-button-disabled {
-  background: rgba(255, 255, 255, 0.3) !important;
-  color: rgba(15, 23, 42, 0.5) !important;
-  border: 2px solid rgba(15, 23, 42, 0.3) !important;
+  background: rgba(166, 63, 63, 0.5) !important;
+  color: #F6F6F0 !important;
+  border: 2px solid #0F172A !important;
   box-shadow: none !important;
   cursor: not-allowed;
 }
@@ -1832,7 +1898,7 @@ button.btn-sm,
 }
 
 /* Timer badge inside next button */
-/* UPDATED: Dark color for readability on yellow/orange backgrounds */
+/* UPDATED: Retro arcade style */
 .auto-advance-timer {
   display: inline-flex;
   align-items: center;
@@ -1840,12 +1906,12 @@ button.btn-sm,
   min-width: 28px;
   height: 28px;
   padding: 0 0.5rem;
-  background: rgba(244, 224, 77, 0.35);
+  background: rgba(142, 115, 193, 0.35);
   border: 2px solid #0F172A;
   border-radius: 14px;
   font-size: 0.85rem;
   font-weight: 700;
-  color: #0F172A;
+  color: #F6F6F0;
 }
 
 /* --- Task 2: Suggestions button next to Waiting for Host --- */
@@ -1857,24 +1923,29 @@ button.btn-sm,
   width: 100%;
 }
 
+/* UPDATED: Suggestions button - light purple for retro arcade */
 .suggestions-modal-btn {
   display: inline-flex;
+  color: #f6f6f0;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 4px solid #0f172a;
+  background: #9b51e9;
   border-radius: 999px;
-  color: inherit;
-  font-size: 0.85rem;
-  font-weight: 500;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem 2rem;
+  font-size: .9rem;
+  font-weight: 600;
+  display: flex;
+  box-shadow: 4px 4px #0f172a;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .suggestions-modal-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(142, 115, 193, 0.3);
+  border-color: #F6F6F0;
 }
 
 .suggestions-modal-list {
@@ -1929,12 +2000,13 @@ button.btn-sm,
 }
 
 /* --- NEW: Custom Scenarios Section in Lobby --- */
+/* UPDATED: Dark green theme */
 .suggestions-card {
   margin-top: 1rem;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
 
@@ -1946,7 +2018,7 @@ button.btn-sm,
   padding: 1rem 1.25rem;
   background: transparent;
   border: none;
-  color: inherit;
+  color: #F6F6F0;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -1954,7 +2026,7 @@ button.btn-sm,
 }
 
 .suggestions-toggle:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .toggle-arrow {
@@ -1972,6 +2044,18 @@ button.btn-sm,
 .suggestion-input-row {
   display: flex;
   gap: 0.5rem;
+  /* ALIGN: Ensure input and button are centered with matching height */
+  align-items: center;
+}
+
+/* ALIGN: Match input height to button */
+.suggestion-input-row .suggestion-input {
+  height: 42px;
+}
+
+.suggestion-input-row .button {
+  height: 42px;
+  padding: 0;
 }
 
 .suggestion-input {
@@ -1979,18 +2063,18 @@ button.btn-sm,
   padding: 0.75rem 1rem;
   border: 2px solid #0F172A;
   border-radius: 12px;
-  background: #FFFFFF;
-  color: #0F172A;
+  background: #1B2E1E;
+  color: #F6F6F0;
   font-size: 0.9rem;
   outline: none;
 }
 
 .suggestion-input:focus {
-  border-color: #4ADE80;
+  border-color: #3F7553;
 }
 
 .suggestion-input::placeholder {
-  color: #0F172A;
+  color: #F6F6F0;
   opacity: 0.5;
 }
 
@@ -2008,38 +2092,39 @@ button.btn-sm,
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.6rem 0.75rem;
-  background: #FFFFFF;
+  background: #3F7553;
   border: 2px solid #0F172A;
   border-radius: 10px;
 }
 
 .suggestion-text {
   font-size: 0.9rem;
-  color: #0F172A;
+  color: #F6F6F0;
   transition: color 0.2s ease;
 }
 
 .suggestion-text:hover {
-  color: #4ADE80;
+  color: #FF6B4A;
 }
 
 .suggestion-author {
   font-size: 0.75rem;
-  color: #0F172A;
-  opacity: 0.6;
+  color: #F6F6F0;
+  opacity: 0.7;
 }
 
 /* --- REORG: Compact Inline Layouts --- */
 
 /* Inline Spotify Connect Button */
+/* UPDATED: Purple themed for retro arcade */
 .spotify-hint-inline {
   display: flex;
   align-items: center;
   justify-content: center;
   margin-top: 0.5rem;
   padding: 0.5rem;
-  background: rgba(11, 110, 79, 0.15);
-  border: 1px solid rgba(11, 110, 79, 0.25);
+  background: rgba(142, 115, 193, 0.15);
+  border: 1px solid rgba(142, 115, 193, 0.25);
   border-radius: 12px;
 }
 
@@ -2048,8 +2133,8 @@ button.btn-sm,
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: #0B6E4F;
-  color: #F2EFEA;
+  background: #8E73C1;
+  color: #F6F6F0;
   border: none;
   border-radius: 999px;
   font-size: 0.85rem;
@@ -2059,17 +2144,18 @@ button.btn-sm,
 }
 
 .spotify-connect-btn:hover {
-  background: #0d855f;
+  background: #9E83D1;
 }
 
 /* Suggestions inline link */
+/* UPDATED: Purple accent for retro arcade */
 .suggestions-inline-toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.6);
+  color: #8E73C1;
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
@@ -2079,8 +2165,8 @@ button.btn-sm,
 }
 
 .suggestions-inline-toggle:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: rgba(142, 115, 193, 0.2);
+  color: #F6F6F0;
 }
 
 .suggestions-inline-toggle .toggle-arrow {
@@ -2093,13 +2179,14 @@ button.btn-sm,
 }
 
 /* Inline suggestions list (collapsed in players card) */
+/* UPDATED: Dark green theme */
 .suggestions-inline-list {
   display: none;
   flex-direction: column;
   gap: 0.35rem;
   margin-top: 0.5rem;
   padding-top: 0.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .suggestions-inline-list.open {
@@ -2111,8 +2198,8 @@ button.btn-sm,
   align-items: center;
   gap: 0.5rem;
   padding: 0.35rem 0.5rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #3F7553;
+  border: 1px solid #0F172A;
   border-radius: 8px;
   font-size: 0.8rem;
 }
@@ -2120,17 +2207,20 @@ button.btn-sm,
 .suggestions-inline-list .suggestion-text {
   flex: 1;
   cursor: pointer;
+  color: #F6F6F0;
 }
 
 .suggestions-inline-list .suggestion-text:hover {
-  color: #0B6E4F;
+  color: #FF6B4A;
 }
 
 .suggestions-inline-list .suggestion-author {
   font-size: 0.7rem;
+  color: #F6F6F0;
 }
 
 /* Inline input row for suggestions */
+/* UPDATED: Dark green background with light text */
 .suggestion-input-inline {
   display: flex;
   gap: 0.35rem;
@@ -2142,14 +2232,14 @@ button.btn-sm,
   padding: 0.4rem 0.6rem;
   border: 2px solid #0F172A;
   border-radius: 8px;
-  background: #FFFFFF;
-  color: #0F172A;
+  background: #1B2E1E;
+  color: #F6F6F0;
   font-size: 0.8rem;
   outline: none;
 }
 
 .suggestion-input-inline input:focus {
-  border-color: #4ADE80;
+  border-color: #3F7553;
 }
 
 .suggestion-input-inline .button {
@@ -2157,14 +2247,71 @@ button.btn-sm,
   font-size: 0.75rem;
 }
 
-/* Inline scenario badge */
-/* UPDATED: Text color changed from #FFFFFF to #0F172A for better readability on yellow/orange backgrounds */
+/* Combined scenario + vote row - Single line with ellipsis when too long */
+/* UPDATED: Single row layout for scenario badge + vote status + settings */
+.scenario-vote-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+/* Scenario badge inline - with ellipsis when too long */
+.scenario-badge-inline {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  background: #FF6B4A;
+  border: 2px solid #0F172A;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0F172A;
+  /* Ensure single line with ellipsis */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  /* Allow shrinking if needed */
+  flex-shrink: 1;
+}
+
+/* Vote status inline - always at far right directly next to settings */
+.scenario-vote-row {
+  justify-content: space-between;
+}
+
+.scenario-vote-row .vote-status-inline {
+  /* Always push to far right */
+  margin-left: auto;
+  /* White text */
+  color: #F6F6F0;
+  padding: 0.1rem 0.25rem;
+  font-size: 1rem;
+}
+
+/* Vote count number in white */
+.scenario-vote-row .vote-status-inline .vote-count {
+  color: #F6F6F0;
+  font-weight: 700;
+}
+
+/* Settings button in scenario row - fixed right position */
+.scenario-vote-row .settings-icon-btn {
+  margin-bottom: 0;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Inline scenario badge (DEPRECATED - use scenario-badge-inline) */
+/* UPDATED: Primary Orange for retro arcade */
 .scenario-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   padding: 0.25rem 0.6rem;
-  background: #FF5733;
+  background: #FF6B4A;
   border: 2px solid #0F172A;
   border-radius: 999px;
   font-size: 0.8rem;
@@ -2172,48 +2319,48 @@ button.btn-sm,
   color: #0F172A;
 }
 
-/* Inline player info with scenario */
+/* Inline player info with scenario (DEPRECATED - use scenario-vote-row) */
 .player-scenario-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0rem;
   width: 100%;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0rem;
 }
 
 .player-scenario-row .scenario-badge {
-  font-size: 0.75rem;
-  padding: 0.2rem 0.5rem;
+  font-size: 1rem;
+  padding: 0.3rem 0.5rem;
 }
 
 .player-scenario-row .round-info {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: 2rem;
+  color: #F6F6F0;
+  opacity: 0.6;
 }
 
 /* Inline vote status */
+/* UPDATED: Orange accent */
 .vote-status-inline {
   display: inline-flex;
-  align-items: center;
+  margin-right: auto;
   gap: 0.35rem;
-  padding: 0.2rem 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.6);
+  padding: 0.3rem 0.5rem;
+  font-size: 1rem;
+  color: #F6F6F0;
 }
 
 .vote-status-inline .vote-count {
   font-weight: 700;
-  color: #0B6E4F;
+  color: #FF6B4A;
 }
 
 /* Compact header row */
+/* UPDATED: Dark theme */
 .compact-header-row {
   display: flex;
   align-items: center;
@@ -2228,11 +2375,11 @@ button.btn-sm,
   align-items: center;
   gap: 0.35rem;
   padding: 0.3rem 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #3F7553;
+  border: 1px solid #0F172A;
   border-radius: 8px;
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: #F6F6F0;
 }
 
 .compact-header-row .room-code-display strong {
@@ -2263,52 +2410,6 @@ button.btn-sm,
   font-size: 0.85rem;
 }
 
-/* Compact track display */
-.track-display-compact {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-}
-
-.track-display-compact .cover-wrapper {
-  position: relative;
-  width: 100%;
-  max-width: 200px;
-}
-
-.track-display-compact .cover-img-large {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  border-radius: 12px;
-}
-
-.track-display-compact .scenario-overlay {
-  position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
-}
-
-.track-display-compact .vote-overlay {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-}
-
-.track-display-compact .track-info {
-  text-align: center;
-}
-
-.track-display-compact .track-info h3 {
-  font-size: 1rem;
-  margin: 0 0 0.25rem;
-}
-
-.track-display-compact .track-info .artist-name {
-  font-size: 0.8rem;
-  opacity: 0.6;
-}
 
 /* Host controls inline */
 .host-controls-inline {
@@ -2357,33 +2458,33 @@ button.btn-sm,
 }
 
 /* Current scenario display above the buttons */
-/* UPDATED: Orange #FF5733 for visibility on yellow */
-/* UPDATED: Text color changed from #FFFFFF to #0F172A for better readability */
+/* UPDATED: Primary Orange for visibility */
 .current-scenario-display {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  background: #FF5733;
+  background: #FF6B4A;
   border: 2px solid #0F172A;
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .current-scenario-label {
   font-size: 0.75rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  font-weight: 700;
+  color: #0F172A;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .current-scenario-value {
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 800;
   color: #0F172A;
 }
 
 /* --- Scenario buttons row - three buttons for host --- */
+/* UPDATED: Lighter green theme with light text */
 .scenario-buttons-row {
   display: flex;
   gap: 0.75rem;
@@ -2394,28 +2495,29 @@ button.btn-sm,
   flex: 1;
   padding: 0.85rem 0.5rem;
   font-size: 0.8rem;
-  font-weight: 500;
-  background: #FFFFFF;
+  font-weight: 600;
+  background: #3F7553;
   border: 2px solid #0F172A;
   border-radius: 12px;
-  color: #0F172A;
+  color: #F6F6F0;
   cursor: pointer;
   transition: all 0.2s ease;
   text-align: center;
 }
 
 .scenario-button:hover {
-  background: #FFE400;
+  background: #FF6B4A;
   border-color: #0F172A;
   transform: translateY(-1px);
 }
 
 .scenario-button:active {
-  background: #4ADE80;
+  background: #2E5A3E;
   transform: translateY(0);
 }
 
 /* Preset scenarios list */
+/* UPDATED: Lighter green theme */
 .preset-scenarios-list {
   display: flex;
   flex-direction: column;
@@ -2427,22 +2529,22 @@ button.btn-sm,
 
 .preset-scenario-item {
   padding: 0.75rem 1rem;
-  background: #FFFFFF;
+  background: #3F7553;
   border: 2px solid #0F172A;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
-  color: #0F172A;
+  color: #F6F6F0;
 }
 
 .preset-scenario-item:hover {
-  background: #FFE400;
+  background: #FF6B4A;
   border-color: #0F172A;
 }
 
 .preset-scenario-item.selected {
-  background: #4ADE80;
-  border-color: #0F172A;
+  background: #2E5A3E;
+  border-color: #FF6B4A;
 }
 
 .preset-scenario-text {
@@ -2450,27 +2552,29 @@ button.btn-sm,
 }
 
 /* Custom scenario input section */
+/* UPDATED: Dark green background */
+/* COMPACT: Reduced margin */
 .custom-scenario-input-section {
-  margin-bottom: 1rem;
+  margin-bottom: 0rem;
 }
 
 .custom-scenario-input {
   width: 100%;
   padding: 0.75rem 1rem;
   font-size: 1rem;
-  background: #FFFFFF;
+  background: #1B2E1E;
   border: 2px solid #0F172A;
   border-radius: 8px;
-  color: #0F172A;
+  color: #F6F6F0;
 }
 
 .custom-scenario-input:focus {
-  border-color: #4ADE80;
+  border-color: #3F7553;
   outline: none;
 }
 
 .custom-scenario-input::placeholder {
-  color: #0F172A;
+  color: #F6F6F0;
   opacity: 0.5;
 }
 
@@ -2478,7 +2582,7 @@ button.btn-sm,
 .blur-field {
   display: inline-block;
   min-width: 80px;
-  height: 1.5em;
+  height: 1em;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -2486,25 +2590,138 @@ button.btn-sm,
   -webkit-backdrop-filter: blur(8px);
 }
 
-/* --- Theme Toggle Row --- */
-.theme-toggle-row {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+/* Theme toggle removed - Single dark retro arcade theme only */
+
+/* --- Focus/Visibility Refresh Animation --- */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
-.theme-button {
-  flex: 1;
-  padding: 0.6rem 1rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  color: rgba(255, 255, 255, 0.7);
+/* --- NEW: Notification Badge --- */
+.notification-badge {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
   font-size: 0.9rem;
   font-weight: 600;
-  cursor: not-allowed;
-  transition: all 0.2s ease;
-  opacity: 0.5;
+  text-align: center;
+  max-width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  animation: slideIn 0.3s ease-out;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-/* Dark/Light mode removed - Single party game theme only */
+/* Error type - red/orange background */
+.notification-badge.error {
+  background: rgba(255, 107, 74, 0.95);
+  border: 3px solid #0F172A;
+  color: #0F172A;
+}
+
+/* Warning type - yellow/amber background */
+.notification-badge.warning {
+  background: rgba(255, 209, 102, 0.95);
+  border: 3px solid #0F172A;
+  color: #0F172A;
+}
+
+/* Slide-in animation */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Auto-dismiss animation - fade out after ~3.5 seconds */
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+}
+
+.notification-badge.dismissing {
+  animation: fadeOut 0.5s ease-out forwards;
+}
+
+/* --- Scrollable Player List Container (Game Lobby) --- */
+.players-list-container {
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-top: 1rem;
+}
+
+/* Custom scrollbar styling for retro theme */
+.players-list-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.players-list-container::-webkit-scrollbar-track {
+  background: #1B2E1E;
+  border-radius: 4px;
+}
+
+.players-list-container::-webkit-scrollbar-thumb {
+  background: #3F7553;
+  border-radius: 4px;
+  border: 2px solid #0F172A;
+}
+
+.players-list-container::-webkit-scrollbar-thumb:hover {
+  background: #FF6B4A;
+}
+
+/* --- Scrollable Scoreboard Container --- */
+.scoreboard-scroll-container {
+  width: 100%;
+  max-height: 400px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar styling for scoreboard */
+.scoreboard-scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scoreboard-scroll-container::-webkit-scrollbar-track {
+  background: #1B2E1E;
+  border-radius: 4px;
+}
+
+.scoreboard-scroll-container::-webkit-scrollbar-thumb {
+  background: #3F7553;
+  border-radius: 4px;
+  border: 2px solid #0F172A;
+}
+
+.scoreboard-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #FF6B4A;
+}

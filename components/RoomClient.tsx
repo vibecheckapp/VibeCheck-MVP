@@ -81,12 +81,15 @@ export default function RoomClient({ roomCode, playerId }: RoomClientProps) {
   const [scenario, setScenario] = useState('');
   const [isStarting, setIsStarting] = useState(false);
   const [roundState, setRoundState] = useState<RoundState | null>(null);
-  const [voteScore, setVoteScore] = useState<number | null>(null);
+const [voteScore, setVoteScore] = useState<number | null>(null);
   const [hasTouchedVoteSlider, setHasTouchedVoteSlider] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
   const [voteSuccess, setVoteSuccess] = useState<string | null>(null);
-  // Ref for the voting slider to update data-value attribute
+// Ref for the voting slider to update data-value attribute
   const sliderRef = useRef<HTMLInputElement>(null);
+// Refs for dynamic font scaling
+  const titleRef = useRef<HTMLHeadingElement | null>(null);
+  const artistRef = useRef<HTMLParagraphElement | null>(null);
   const [playbackBusy, setPlaybackBusy] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackActive, setPlaybackActive] = useState(false);
@@ -106,6 +109,8 @@ const [playbackError, setPlaybackError] = useState<string | null>(null);
   // Game pause state
   const [isPaused, setIsPaused] = useState(false);
   const [isPausing, setIsPausing] = useState(false);
+  // Refresh indicator when returning to page after being away
+  const [isRefreshingOnFocus, setIsRefreshingOnFocus] = useState(false);
 // Room settings
 const mapRoomSettings = (settings?: Partial<RoomSettings> | null): RoomSettings => ({
   auto_advance: settings?.auto_advance ?? true,
@@ -120,8 +125,6 @@ const [roomSettings, setRoomSettings] = useState<RoomSettings>(mapRoomSettings()
   const [autoAdvanceTime, setAutoAdvanceTime] = useState<number | null>(null);
 // Settings modal
   const [showSettings, setShowSettings] = useState(false);
-  // Player theme preference (dark/light)
-  const [playerTheme, setPlayerTheme] = useState<string>('dark');
 // Custom scenarios from community
   const [customScenarioInput, setCustomScenarioInput] = useState('');
   const [customScenarioSent, setCustomScenarioSent] = useState(false);
@@ -164,9 +167,27 @@ const [playerLastSeen, setPlayerLastSeen] = useState<Record<string, string>>({})
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [kickError, setKickError] = useState<string | null>(null);
+const [kickError, setKickError] = useState<string | null>(null);
   const [kickingPlayerId, setKickingPlayerId] = useState<string | null>(null);
+  // Notification badge state
+  const [notification, setNotification] = useState<{ message: string; type: 'error' | 'warning' } | null>(null);
+  const [notificationDismissing, setNotificationDismissing] = useState(false);
   const router = useRouter();
+  
+  // Notification auto-dismiss utility
+  const showNotification = (message: string, type: 'error' | 'warning' = 'error') => {
+    setNotification({ message, type });
+    setNotificationDismissing(false);
+    // Auto-dismiss after 4 seconds
+    setTimeout(() => {
+      setNotificationDismissing(true);
+      // Remove after fade animation completes
+      setTimeout(() => {
+        setNotification(null);
+        setNotificationDismissing(false);
+      }, 500);
+    }, 3500);
+  };
 
   const handleKickedOrRemovedFromRoom = () => {
     try {
@@ -214,7 +235,7 @@ const [playerLastSeen, setPlayerLastSeen] = useState<Record<string, string>>({})
 
 fetch(`/api/rooms/lookup?${query.toString()}`)
       .then((res) => res.json())
-      .then((data: LookupResponse & { theme?: string }) => {
+.then((data: LookupResponse) => {
         if (savedPlayerId && !data.currentPlayer) {
           handleKickedOrRemovedFromRoom();
           return;
@@ -235,12 +256,8 @@ setPlayers(data.players ?? []);
         setCurrentPlayer(data.currentPlayer ?? null);
 // Load settings from room data if they exist (persisted until room is dissolved)
         // Ensure all settings default to true even if server returns partial settings
-if (data.room?.settings) {
+        if (data.room?.settings) {
           setRoomSettings(mapRoomSettings(data.room.settings));
-        }
-// Load player's theme preference
-        if (data.theme) {
-          setPlayerTheme(data.theme);
         }
       })
       .catch(() => setRoom(null));
@@ -252,31 +269,96 @@ if (data.room?.settings) {
   // Initialize embedded Spotify Web Playback SDK for the host only
   const spotify = useSpotifyPlayer({ playerId: currentPlayer?.id ?? '', isHost, roomCode: room?.room_code });
 
-  useEffect(() => {
+useEffect(() => {
     if (spotify?.error) {
       setPlaybackError(spotify.error);
+      showNotification(spotify.error, 'error');
     }
   }, [spotify?.error]);
 
+  // Watch playbackError and show as notification
+  useEffect(() => {
+    if (playbackError) {
+      showNotification(playbackError, 'error');
+    }
+  }, [playbackError]);
+
+  // Watch roundError and show as notification
+  useEffect(() => {
+    if (roundError) {
+      showNotification(roundError, 'error');
+    }
+  }, [roundError]);
+
+  // Watch startError and show as notification
+  useEffect(() => {
+    if (startError) {
+      showNotification(startError, 'error');
+    }
+  }, [startError]);
+
+  // Watch voteError and show as notification
+  useEffect(() => {
+    if (voteError) {
+      showNotification(voteError, 'error');
+    }
+  }, [voteError]);
+
+  // Watch nextError and show as notification
+  useEffect(() => {
+    if (nextError) {
+      showNotification(nextError, 'error');
+    }
+  }, [nextError]);
+
+// FIX: Enhanced SDK state listener - more robust state sync with polling
   useEffect(() => {
     const sdkPlayer = (window as any)?.__vibecheck_spotify_player_instance?.player;
     if (!isHost || !sdkPlayer) return;
 
+    // Poll SDK state every 2 seconds to keep UI in sync
+    const pollState = async () => {
+      try {
+        const state = await sdkPlayer.getCurrentState();
+        if (state) {
+          // isPlaying = true means paused (button shows "Play")
+          // isPlaying = false means playing (button shows "Pause")
+          setIsPlaying(state.paused);
+          setPlaybackActive(!state.paused);
+        }
+      } catch {
+        // Ignore - SDK may not be ready
+      }
+    };
+
+    // Initial state fetch
+    pollState();
+
+    // Poll every 2 seconds for reliable sync
+    const pollInterval = setInterval(pollState, 2000);
+
     const onStateChange = (state: any) => {
-      if (!state) return;
-      setPlaybackActive(!state.paused);
+      if (!state) {
+        // If no state, poll to get actual state
+        pollState();
+        return;
+      }
+      // Sync local state with actual SDK state immediately
       setIsPlaying(state.paused);
+      setPlaybackActive(!state.paused);
     };
 
     sdkPlayer.addListener('player_state_changed', onStateChange);
+
     return () => {
+      clearInterval(pollInterval);
       try {
         sdkPlayer.removeListener('player_state_changed', onStateChange);
       } catch {}
     };
   }, [isHost, spotify?.ready]);
 
-  // Centralized server-authoritative sync: subscribe to room_events and apply snapshots
+// Centralized server-authoritative sync: subscribe to room_events and apply snapshots
   useEffect(() => {
     if (!room?.id) return;
     const stop = startRoomSync(room.id, {
@@ -294,10 +376,19 @@ if (data.room?.settings) {
           if (sRoom?.settings) {
             setRoomSettings(mapRoomSettings(sRoom.settings));
           }
+          // FIX: Refresh happens silently in background - no UI indicator shown
+          setIsRefreshingOnFocus(false);
           // votes and song_history are authoritative; merge minimally
           // The detailed round structure is fetched by existing round APIs when active_round_id changes
         } catch (err) {
           console.error('apply snapshot error', err);
+        }
+      },
+      onVisibilityChange: (isVisible, wasHiddenDurationMs) => {
+        if (isVisible && wasHiddenDurationMs && wasHiddenDurationMs > 1000) {
+          // FIX: Silent refresh in background only - no UI indicator
+          setIsRefreshingOnFocus(true);
+          console.log('[RoomClient] Silent refresh after returning from background');
         }
       },
       playerId: savedPlayerId,
@@ -388,9 +479,7 @@ let mounted = true;
         
 if (mounted && response.ok) {
           setRoundState(data.round ?? null);
-          setIsPlaying(true);
-          setPlaybackActive(false);
-          setCurrentPlayingUri(null);
+          // FIX: Don't set isPlaying/playbackActive here - SDK state listener will handle it
           setWinnerSongPlayed(false);
           // Extract paused_at from round data and update local isPaused state
           if (data.round?.paused_at) {
@@ -554,12 +643,10 @@ if (mounted && response.ok) {
                 if (newActiveRoundId && savedPlayerId) {
                   fetch(`/api/rounds/${newActiveRoundId}?playerId=${savedPlayerId}`)
                     .then((res) => res.json())
-                    .then((data) => {
+.then((data) => {
                       if (mounted) {
                         setRoundState(data.round ?? null);
-                        setIsPlaying(true);
-                        setPlaybackActive(false);
-                        setCurrentPlayingUri(null);
+                        // FIX: Don't set isPlaying/playbackActive here - SDK state listener will handle it
                         setWinnerSongPlayed(false);
                         if (data.round) setShowLobbyAfterRound(false);
                       }
@@ -745,19 +832,65 @@ return () => clearInterval(interval);
       setVoteScore(null);
       setHasTouchedVoteSlider(false);
       setVoteSuccess(null);
-      setVoteError(null);
+setVoteError(null);
     }
   }, [roundState?.current_pick?.id]);
 
-// Update slider thumb data-value attribute when voteScore changes - this is used by CSS to display the number
+// Dynamic font scaling: adjust font size to fit title and artist in container
+useEffect(() => {
+    const parent = titleRef.current?.parentElement;
+    if (!parent) return;
+
+    // Function to adjust fonts based on available container width
+    const adjustFonts = () => {
+      if (!titleRef.current || !artistRef.current) return;
+
+      // Get the actual available width from the parent container
+      const containerWidth = parent.clientWidth;
+      if (containerWidth <= 0) return;
+
+      // Reset styles first
+      titleRef.current.style.fontSize = '1.35rem';
+      artistRef.current.style.fontSize = '0.95rem';
+
+      // Adjust title font size - ensure it fits within container
+      let titleSize = 1.35;
+      const minTitleSize = 0.75;
+      while (titleRef.current.scrollWidth > containerWidth && titleSize > minTitleSize) {
+        titleSize -= 0.05;
+        titleRef.current.style.fontSize = `${titleSize}rem`;
+      }
+
+      // Adjust artist font size - ensure it fits within container
+      let artistSize = 0.95;
+      const minArtistSize = 0.6;
+      while (artistRef.current.scrollWidth > containerWidth && artistSize > minArtistSize) {
+        artistSize -= 0.05;
+        artistRef.current.style.fontSize = `${artistSize}rem`;
+      }
+    };
+
+    // Use ResizeObserver to detect container width changes (more robust than timer)
+    const resizeObserver = new ResizeObserver(() => {
+      // Small delay to ensure DOM is ready
+      requestAnimationFrame(() => adjustFonts());
+    });
+
+    resizeObserver.observe(parent);
+
+    // Initial adjustment after render
+    const timer = setTimeout(adjustFonts, 50);
+
+    return () => {
+      clearTimeout(timer);
+      resizeObserver.disconnect();
+    };
+  }, [roundState?.current_pick?.track_name, roundState?.current_pick?.artist_names]);
+
+// Update slider thumb value display when voteScore changes
   useEffect(() => {
     if (sliderRef.current) {
       const value = voteScore ?? 5;
-      sliderRef.current.setAttribute('data-value', String(value));
-      
-      // For WebKit browsers, we need to manually update the thumb's pseudo-element content
-      // This is done via the CSS ::after pseudo-element using content: attr(data-value)
-      // Force a re-render of the slider styles by touching the element
       sliderRef.current.style.setProperty('--thumb-value', String(value));
     }
   }, [voteScore]);
@@ -766,13 +899,11 @@ return () => clearInterval(interval);
   const fetchRound = async (roundId: string) => {
     if (!savedPlayerId) return;
     try {
-      const response = await fetch(`/api/rounds/${roundId}?playerId=${savedPlayerId}`);
+const response = await fetch(`/api/rounds/${roundId}?playerId=${savedPlayerId}`);
       const data = await response.json();
       if (response.ok) {
         setRoundState(data.round ?? null);
-        setIsPlaying(true);
-        setPlaybackActive(false);
-        setCurrentPlayingUri(null);
+        // FIX: Don't set isPlaying/playbackActive here - SDK state listener will handle it
         setWinnerSongPlayed(false);
         setRoundError(null);
         if (!data.round) {
@@ -849,35 +980,7 @@ const handleUpdateSettings = async (newSettings: RoomSettings) => {
     } catch (error) {
       setRoundError('Failed to update settings');
     }
-  };
-
-  const handleUpdateTheme = async (newTheme: string) => {
-    if (!currentPlayer?.id) return;
-    try {
-      const response = await fetch('/api/players/theme', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId: currentPlayer.id, theme: newTheme }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('Failed to update theme:', data.error);
-        return;
-      }
-      setPlayerTheme(newTheme);
-    } catch (error) {
-      console.error('Failed to update theme:', error);
-    }
-  };
-
-  // Apply theme to document root when it changes
-  useEffect(() => {
-    if (playerTheme === 'light') {
-      document.documentElement.classList.add('light-theme');
-    } else {
-      document.documentElement.classList.remove('light-theme');
-    }
-  }, [playerTheme]);
+};
 
 const handleSubmitCustomScenario = async () => {
     if (!room?.id || !currentPlayer?.id || !customScenarioInput.trim()) return;
@@ -971,36 +1074,67 @@ const effectivePaused = !!roundState && roundState.status === 'playing' && (isPa
 
     const winnerUri = winnerSong.uri;
 
-    // Play immediately when scoreboard is available
+// Play immediately when scoreboard is available
+    // FIX: Use SDK directly for reliable auto-play
     const playWinner = async () => {
+      const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
       try {
-        await spotify.play(winnerUri);
-        setIsPlaying(false);
-        setPlaybackActive(true);
+        // Pause first via SDK
+        if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
+          try { await sdkPlayer.pause(); } catch { /* ignore */ }
+        }
+        await new Promise(r => setTimeout(r, 100));
+        setCurrentPlayingUri(null);
+        
+        // Play via SDK directly
+        if (sdkPlayer && typeof sdkPlayer.play === 'function') {
+          await sdkPlayer.play({ uris: [winnerUri] });
+        } else {
+          // Fallback: REST API
+          const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
+            .then(r => r.json()).then(j => j.access_token).catch(() => null);
+          if (token && spotify?.deviceId) {
+            await fetch('https://api.spotify.com/v1/me/player', {
+              method: 'PUT',
+              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ device_ids: [spotify.deviceId], play: true, uris: [winnerUri] })
+            });
+          }
+        }
         setCurrentPlayingUri(winnerUri);
         setWinnerSongPlayed(true);
       } catch (error: any) {
         const msg = String(error?.message ?? '');
-        if (msg.toLowerCase().includes('restriction violated') || msg.toLowerCase().includes('spotify blockiert')) {
-          setPlaybackError('Gewinner-Song konnte nicht automatisch gestartet werden (Spotify Restriction).');
-          setIsPlaying(true);
-          setPlaybackActive(false);
+        if (msg.toLowerCase().includes('restriction') || msg.toLowerCase().includes('spotify')) {
+          setPlaybackError('Auto-Play: Bitte manuell auf Play drücken.');
           return;
         }
-        console.error('Failed to auto-play winner song:', error);
+        console.error('Auto-play winner song error:', error);
       }
     };
     playWinner();
 
-    let stopTimeout: NodeJS.Timeout | null = null;
+let stopTimeout: NodeJS.Timeout | null = null;
     if (roomSettings.auto_play_winner_duration > 0) {
+      // FIX: Use SDK for auto-stop
       stopTimeout = setTimeout(async () => {
+        const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
         try {
-          await spotify.pause();
-          setIsPlaying(true);
-          setPlaybackActive(false);
+          if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
+            await sdkPlayer.pause();
+          } else {
+            // REST API fallback
+            const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
+              .then(r => r.json()).then(j => j.access_token).catch(() => null);
+            if (token) {
+              await fetch('https://api.spotify.com/v1/me/player/pause', {
+                method: 'PUT',
+                headers: { Authorization: `Bearer ${token}` }
+              });
+            }
+          }
         } catch (error) {
-          console.error('Failed to auto-stop winner song:', error);
+          console.error('Auto-stop winner song error:', error);
         }
       }, roomSettings.auto_play_winner_duration * 1000);
     }
@@ -1050,25 +1184,45 @@ if (data.round?.id) {
         // Reset lobby transition state for new round
         fetchRound(data.round.id);
         
-        // Auto-play first song when round starts (host only)
-        if (isHost && spotify?.ready && data.round.current_pick?.uri) {
+// Auto-play first song when round starts (host only)
+        // FIX: Use SDK directly for reliable auto-play
+        if (isHost && data.round.current_pick?.uri) {
           setTimeout(async () => {
+            const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
+            const trackUri = data.round.current_pick.uri;
             try {
-              await spotify.play(data.round.current_pick.uri);
-              setIsPlaying(false);
-              setPlaybackActive(true);
-              setCurrentPlayingUri(data.round.current_pick.uri);
+              // Pause first via SDK
+              if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
+                try { await sdkPlayer.pause(); } catch { /* ignore */ }
+              }
+              await new Promise(r => setTimeout(r, 100));
+              setCurrentPlayingUri(null);
+              
+              // Play via SDK directly
+              if (sdkPlayer && typeof sdkPlayer.play === 'function') {
+                await sdkPlayer.play({ uris: [trackUri] });
+              } else {
+                // Fallback: REST API
+                const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
+                  .then(r => r.json()).then(j => j.access_token).catch(() => null);
+                if (token && spotify?.deviceId) {
+                  await fetch('https://api.spotify.com/v1/me/player', {
+                    method: 'PUT',
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_ids: [spotify.deviceId], play: true, uris: [trackUri] })
+                  });
+                }
+              }
+              setCurrentPlayingUri(trackUri);
             } catch (playError: any) {
               const msg = String(playError?.message ?? '');
-              if (msg.toLowerCase().includes('restriction violated') || msg.toLowerCase().includes('spotify blockiert')) {
-                setPlaybackError('Erster Song konnte nicht automatisch gestartet werden (Spotify Restriction). Manuell auf Play drücken.');
-                setIsPlaying(true);
-                setPlaybackActive(false);
+              if (msg.toLowerCase().includes('restriction') || msg.toLowerCase().includes('spotify')) {
+                setPlaybackError('Auto-Play: Bitte manuell auf Play drücken.');
                 return;
               }
-              console.error('Failed to auto-play first song:', playError);
+              console.error('Auto-play first song error:', playError);
             }
-          }, 500); // Small delay to ensure player is ready
+          }, 500);
         }
       }
     } catch (error) {
@@ -1132,9 +1286,8 @@ setNextError(data.error || 'Could not move to next player.');
 
 if (data.status === 'finished') {
       setRoundState((prev) => (prev ? { ...prev, status: 'finished' } : prev));
-      setIsPlaying(true);
-      setPlaybackActive(false);
-      setCurrentPlayingUri(null);
+      // FIX: Don't manually set isPlaying state - let SDK state listener handle it
+      // We keep currentPlayingUri for reference but let SDK manage playback state
       setIsTransitioning(false);
       return;
     }
@@ -1172,79 +1325,200 @@ setVoteScore(null);
       setIsTransitioning(false);
       
 // Auto-play new song when advancing to next player (host only)
-      // FIX: Always set isPlaying to true because we just started playing the new song
-      if (isHost && spotify?.ready && data.pick.uri) {
+      // FIX: Use SDK directly for reliable auto-play
+      if (isHost && data.pick.uri) {
         setTimeout(async () => {
+          const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
+          const trackUri = data.pick.uri;
           try {
-            await spotify.play(data.pick.uri);
-            setIsPlaying(false);
-            setPlaybackActive(true);
-            setCurrentPlayingUri(data.pick.uri);
+            // Pause first via SDK
+            if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
+              try { await sdkPlayer.pause(); } catch { /* ignore */ }
+            }
+            await new Promise(r => setTimeout(r, 100));
+            setCurrentPlayingUri(null);
+            
+            // Play via SDK directly
+            if (sdkPlayer && typeof sdkPlayer.play === 'function') {
+              await sdkPlayer.play({ uris: [trackUri] });
+            } else {
+              // Fallback: REST API
+              const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
+                .then(r => r.json()).then(j => j.access_token).catch(() => null);
+              if (token && spotify?.deviceId) {
+                await fetch('https://api.spotify.com/v1/me/player', {
+                  method: 'PUT',
+                  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ device_ids: [spotify.deviceId], play: true, uris: [trackUri] })
+                });
+              }
+            }
+            setCurrentPlayingUri(trackUri);
           } catch (playError: any) {
             const msg = String(playError?.message ?? '');
-            if (msg.toLowerCase().includes('restriction violated') || msg.toLowerCase().includes('spotify blockiert')) {
-              setPlaybackError('Auto-Play war nicht möglich (Spotify Restriction). Runde läuft weiter, manuell auf Play drücken.');
-              setIsPlaying(true);
-              setPlaybackActive(false);
+            if (msg.toLowerCase().includes('restriction') || msg.toLowerCase().includes('spotify')) {
+              setPlaybackError('Auto-Play: Bitte manuell auf Play drücken.');
               return;
             }
-            console.error('Failed to auto-play next song:', playError);
+            console.error('Auto-play next song error:', playError);
           }
-        }, 500); // Small delay to ensure player is ready
+        }, 500);
       } else {
-        setIsPlaying(false);
-        setPlaybackActive(true);
         setCurrentPlayingUri(data.pick.uri);
       }
     }
   };
 
+// FIX: Add ref for debounce to prevent rapid clicking
+  const lastPlaybackActionRef = useRef<number>(0);
+  const MIN_ACTION_INTERVAL_MS = 500;
+
+// FIX: Song is currently playing (not paused) - derived from SDK state directly when needed
+  // This is the authoritative state - no local state syncing that can get out of sync
+  const [playbackLoading, setPlaybackLoading] = useState(false);
+  const MIN_LOADING_MS = 300;
+
+// FIX: Mobile detection helper
+  const isMobileBrowser = typeof window !== 'undefined' && 
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  // FIX: Helper to get actual playback state directly from SDK - this is the authoritative source
+  const getSdkPlaybackState = async (): Promise<{ isPlaying: boolean; position: number } | null> => {
+    const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
+    if (!sdkPlayer) return null;
+    try {
+      const state = await sdkPlayer.getCurrentState();
+      if (state) {
+        // SDK: paused = true means not playing, paused = false means playing
+        return { isPlaying: !state.paused, position: state.position };
+      }
+    } catch { /* SDK not ready */ }
+    return null;
+  };
+
   const handlePlayPause = async () => {
-    if (!playerCanControl || !currentPlayer?.id || !currentPick || effectivePaused) return;
+    // FIX: Debounce - prevent rapid clicking causing race conditions
+    const now = Date.now();
+    if (now - lastPlaybackActionRef.current < MIN_ACTION_INTERVAL_MS) {
+      console.log('[handlePlayPause] Debouncing - too soon after last action');
+      return;
+    }
+    lastPlaybackActionRef.current = now;
 
-    if (!spotify) {
-      setPlaybackError('Spotify player is not initialized.');
+if (!playerCanControl || !currentPlayer?.id || !currentPick || effectivePaused) return;
+
+    // FIX: Show mobile warning - but don't block, just notify
+    if (isMobileBrowser) {
+      setPlaybackError('Spotify Web Playback works on desktop only. Please use Spotify Connect on your mobile device or join from a desktop browser.');
       return;
     }
 
-    if (!spotify.ready) {
-      setPlaybackError('Spotify player is not ready yet. Please wait a moment.');
-      return;
-    }
-
+// FIX: Use stable loading state - set loading BEFORE operation
+    setPlaybackLoading(true);
     setPlaybackBusy(true);
     setPlaybackError(null);
 
     try {
-      // Invertierte Buttonlogik:
-      // isPlaying=true => Button zeigt "Play" (Song läuft NICHT)
-      // isPlaying=false => Button zeigt "Pause" (Song läuft)
-      const shouldStartPlayback = isPlaying;
-      setIsPlaying(!isPlaying);
+      // Use SDK directly - no wrapper check needed
+      const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
+      
+      // FIX: Get DIRECT state from SDK - this is authoritative and always fresh
+      const sdkState = await getSdkPlaybackState();
+      
+      // If SDK returns null, assume paused (safest default)
+      // sdkState.isPlaying = true means music is playing
+      // sdkState.isPlaying = false means music is paused
+      const isCurrentlyPlaying = sdkState?.isPlaying ?? false;
+      
+      // shouldStartPlayback = true means we need to START playback (currently paused)
+      // shouldStartPlayback = false means we need to PAUSE (currently playing)
+      const shouldStartPlayback = !isCurrentlyPlaying;
 
-      if (shouldStartPlayback) {
-        if (!currentPick.uri) {
-          setPlaybackError('Track URI missing');
-          setIsPlaying(true);
-          return;
-        }
-
-        if (currentPlayingUri === currentPick.uri) {
-          await spotify.resume();
-        } else {
-          await spotify.play(currentPick.uri);
-          setCurrentPlayingUri(currentPick.uri);
-        }
-        setPlaybackActive(true);
-      } else {
-        await spotify.pause();
-        setPlaybackActive(false);
+      // FIX: Always use the CURRENT pick's URI - never use cached currentPlayingUri
+      // This ensures we play the correct song that's displayed
+      const trackUri = currentPick?.uri;
+      if (!trackUri) {
+        setPlaybackError('Track URI missing');
+        setPlaybackLoading(false);
+        setPlaybackBusy(false);
+        return;
       }
+
+if (shouldStartPlayback) {
+        // FIX: Try pause first via SDK
+        if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
+          try { await sdkPlayer.pause(); } catch { /* ignore */ }
+        }
+        // Short delay for Spotify to settle
+        await new Promise(r => setTimeout(r, 100));
+        
+        // Clear before playing to ensure fresh state
+        setCurrentPlayingUri(null);
+        
+        // FIX: Play directly via SDK - always play the current pick's URI
+        if (sdkPlayer && typeof sdkPlayer.play === 'function') {
+          await sdkPlayer.play({ uris: [trackUri] });
+        } else {
+          // Fallback: try REST API if SDK not available
+          // This handles the case where user has Spotify on another device
+          const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
+            .then(r => r.json())
+            .then(json => json.access_token)
+            .catch(() => null);
+          
+          if (token) {
+            // Transfer playback to best device and play
+            await fetch('https://api.spotify.com/v1/me/player', {
+              method: 'PUT',
+              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ device_ids: [spotify?.deviceId ?? ''].filter(Boolean), play: true, uris: [trackUri] })
+            });
+          }
+        }
+        
+        // Update to track what we're trying to play
+        setCurrentPlayingUri(trackUri);
+      } else {
+        // Pause directly via SDK
+        if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
+          await sdkPlayer.pause();
+        } else {
+          // Fallback: try REST API
+          const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
+            .then(r => r.json())
+            .then(json => json.access_token)
+            .catch(() => null);
+          
+          if (token) {
+            await fetch('https://api.spotify.com/v1/me/player/pause', {
+              method: 'PUT',
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          }
+        }
+      }
+
+// FIX: Keep loading indicator for minimum time to prevent flickering
+      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_MS));
     } catch (error: any) {
-      setIsPlaying(isPlaying);
       setPlaybackError(error?.message ?? 'Error controlling playback.');
     } finally {
+      setPlaybackLoading(false);
       setPlaybackBusy(false);
+      
+      // FIX: Quick state sync after operation completes - ensure button updates immediately
+      const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
+      if (sdkPlayer) {
+        try {
+          const state = await sdkPlayer.getCurrentState();
+          if (state) {
+            setIsPlaying(state.paused);
+            setPlaybackActive(!state.paused);
+          }
+        } catch {
+          // Ignore - will be synced by polling
+        }
+      }
     }
   };
 
@@ -1352,10 +1626,30 @@ const handleReturnToLobby = async () => {
     'Custom...',
   ];
 
-  return (
+return (
     <section className="hero">
 
+{/* Notification Badge - shown at top for 3-5 seconds */}
+      {notification && (
+        <div
+          className={`notification-badge ${notification.type} ${notificationDismissing ? 'dismissing' : ''}`}
+          onClick={() => {
+            setNotificationDismissing(true);
+            setTimeout(() => {
+              setNotification(null);
+              setNotificationDismissing(false);
+            }, 500);
+          }}
+          role="alert"
+          aria-live="assertive"
+        >
+          {notification.message}
+        </div>
+      )}
+
 {/* HIER WIRD ES GEÄNDERT: Settings-Button (⚙️) für ALLE Spieler in Lobby und Runde */}
+      {/* FIX: Refresh indicator removed from UI - happens silently in background only */}
+
       {/* Lobby Header: Gear-Icon für alle Spieler, Leave kommt in Settings Modal */}
       {!isPlayingRound ? (
         <div className="lobby-header">
@@ -1384,10 +1678,11 @@ const handleReturnToLobby = async () => {
       {(!isPlayingRound || showLobbyAfterRound) ? (
         <>
           <div className="card-row">
-            <div className="card">
+<div className="card">
               <h2>Players</h2>
               {players.length > 0 ? (
-                <div className="players-grid">
+                <div className="players-list-container">
+                  <div className="players-grid">
                   {players.map((player) => {
                     const isMe = player.id === currentPlayer?.id;
                     const hasSpotify = player.spotify_connected;
@@ -1403,17 +1698,17 @@ return (
                         <div className="player-card-right">
                         {/* Task 1: Clickable Spotify button - only clickable by the player themselves */}
                         <div className="player-spotify-controls">
-                          <div
+<div
                             className={`spotify-status-icon ${hasSpotify ? 'connected' : 'disconnected'}`}
                             aria-label={hasSpotify ? 'Spotify connected' : 'Spotify not connected'}
                             title={hasSpotify ? 'Spotify connected' : 'Spotify not connected'}
                           >
                             {hasSpotify ? (
-                              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                              <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
                                 <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.893-.982-.336.075-.668-.135-.744-.47-.077-.337.135-.668.47-.745 3.856-.88 7.15-.51 9.82.124.296.18.387.563.207.866zm1.224-2.724c-.226.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.08-1.182-.413.125-.847-.107-.972-.52-.125-.413.108-.847.52-.972 3.67-1.114 8.243-.574 11.35 1.335.366.226.486.706.257 1.08zM17.91 11.416c-3.262-1.937-8.644-2.115-11.75-1.173-.5.15-.1.916-.15.414-.15-.5.103-.918.414-1.07 3.585-1.087 9.53-.884 13.29 1.347.45.267.6.848.333 1.3-.267.45-.848.6-1.3.332z"/>
                               </svg>
                             ) : (
-                              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M9 18V5l12-2v13"></path>
                                 <circle cx="6" cy="18" r="3"></circle>
                                 <circle cx="18" cy="16" r="3"></circle>
@@ -1450,10 +1745,11 @@ return (
                           ) : null}
                         </div>
                         </div>
-                      </div>
+</div>
                     );
                   })}
-</div>
+                  </div>
+                </div>
               ) : (
                 <p className="hint">Waiting for players...</p>
               )}
@@ -1494,7 +1790,7 @@ return (
                       className="scenario-button"
                       onClick={() => setShowCommunitySuggestions(true)}
                     >
-                      🎵 Suggestions ({customScenarios.length})
+                      🎵 Suggestions
                     </button>
                   </div>
                 </div>
@@ -1504,9 +1800,8 @@ return (
             <p className="warning">Please join via Create or Join. Your name will be saved.</p>
           )}
 
-          {!roundState && room?.active_round_id && !showLobbyAfterRound ? <p>Lade Rundendaten...</p> : null}
+{!roundState && room?.active_round_id && !showLobbyAfterRound ? <p>Lade Rundendaten...</p> : null}
           {showLobbyAfterRound && roundState?.status === 'finished' ? <p className="success-message">Round finished — you are back in the lobby.</p> : null}
-          {roundError ? <p className="error-message">{roundError}</p> : null}
 
 <div className="actions">
             {!room?.active_round_id ? (
@@ -1526,13 +1821,12 @@ return (
                         aria-label="View Suggestions"
                         title="View Suggestions"
                       >
-                        🎵 Suggestions ({customScenarios.length})
+                        🎵 Suggestions
                       </button>
                     )}
                   </div>
                 )}
-                {startError ? <p className="error-message">{startError}</p> : null}
-                {kickError ? <p className="error-message">{kickError}</p> : null}
+
                 {currentPlayer && isHost && !allSpotifyConnected ? <p className="hint">All players must connect Spotify before starting.</p> : null}
               </>
             ) : null}
@@ -1542,16 +1836,18 @@ return (
 
 {roundState && !showLobbyAfterRound ? (
 <section className="round-hero">
-          {/* Round header - INLINE scenario badge + vote status */}
-<div className="player-scenario-row">
-            <span className="scenario-badge">{roundState?.scenario}</span>
-            {/* Show vote count only during active gameplay, not on scoreboard */}
+{/* FIX: Refresh indicator removed from UI - happens silently in background only */}
+
+{/* Round header - INLINE: scenario | vote-status | settings */}
+          <div className="scenario-vote-row">
+            <span className="scenario-badge-inline">
+              {roundState?.scenario}
+            </span>
             {roundState?.status !== 'finished' && (
               <span className="vote-status-inline">
                 <span className="vote-count">{roundState?.votes_cast}/{roundState?.votes_needed}</span> voted
               </span>
             )}
-            {/* Hide settings while paused so host only sees pause overlay controls */}
             {roundState?.status !== 'finished' && !effectivePaused && (
               <button
                 type="button"
@@ -1565,12 +1861,12 @@ return (
             )}
           </div>
 
-          {roundState.status === 'finished' ? (
+           {roundState.status === 'finished' ? (
             <div className="round-hero">
-              <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.25rem' }}>Round finished</h2>
-              <p className="hint" style={{ marginBottom: '1rem' }}>Results:</p>
+<h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.25rem' }}>Round finished</h2>
               
-<div className="scoreboard-container">
+<div className="scoreboard-scroll-container">
+                <div className="scoreboard-container">
                 {roundState.scoreboard.length > 0 ? (
                   Array.from(
                     new Map(
@@ -1620,11 +1916,12 @@ return (
                         </div>
                       );
                     })
-                ) : (
+) : (
                   <div className="scoreboard-row-card">
                     <p className="hint" style={{ margin: 0 }}>No results available.</p>
                   </div>
                 )}
+                </div>
               </div>
 
               <div className="actions" style={{ width: '100%', maxWidth: '480px', marginTop: '1.5rem' }}>
@@ -1675,9 +1972,9 @@ return (
                       </div>
                     )}
 
-                    <div className="track-text-stacked">
-                      <h3>{currentPick.track_name}</h3>
-                      <p className="artist-name">{currentPick.artist_names}</p>
+<div className="track-text-stacked">
+<h3 ref={titleRef}>{currentPick.track_name}</h3>
+                      <p ref={artistRef} className="artist-name">{currentPick.artist_names}</p>
                     </div>
                   </div>
                 ) : (
@@ -1686,19 +1983,20 @@ return (
 
 {/* Play-Button wurde nach oben zum Host Controls Stack verschoben */}
 
-                {playbackError && <p className="error-message">{playbackError}</p>}
-              </div>
+</div>
 
-              {/* Host Controls Stack */}
+{/* Host Controls Stack */}
               {isHost && currentPick && !effectivePaused && (
                 <div className="host-controls-stack">
                   <button
                     type="button"
-                    className="button play-button"
+                    className={`button play-button ${playbackLoading ? 'button-loading' : ''}`}
                     disabled={playbackBusy}
                     onClick={handlePlayPause}
                   >
-                    {playbackBusy ? '...' : isPlaying ? '▶ Play' : '⏸ Pause'}
+                    {/* FIX: Use isPlaying as proxy - isPlaying=true means SDK thinks paused, so button shows "Play" */}
+                    {/* The button text reflects what clicking it WILL do, not current state */}
+                    {playbackLoading ? '⏳' : playbackBusy ? '...' : isPlaying ? '▶ Play' : '⏸ Pause'}
                   </button>
                   
                   {/* Next Player Button - grau/transparent bis alle gevoted haben */}
@@ -1729,8 +2027,8 @@ return (
 <div className="card rating-box-card compact">
 <div className="slider-rating-wrapper">
                   <span className="slider-label-left">1</span>
-<div className={`rating-slider-container ${!hasTouchedVoteSlider ? 'is-pristine' : ''}`}>
-                    <input
+                  <div className={`rating-slider-container ${!hasTouchedVoteSlider ? 'is-pristine' : ''}`}>
+<input
                       ref={sliderRef}
                       type="range"
                       min="1"
@@ -1742,15 +2040,12 @@ return (
                         }
                         setVoteScore(Number(e.target.value));
                       }}
-                      className="rating-slider"
+className="rating-slider"
                       disabled={hasVoted}
-                      style={{
-                        '--thumb-value': String(voteScore ?? 5)
-                      } as React.CSSProperties}
                     />
                   </div>
                   <span className="slider-label-right">10</span>
-                  {/* Vote button moved to right of slider */}
+                  {/* Vote button removed - errors now show in notification only */}
                   <button
                     type="button"
                     className={`submit-vote-button ${hasVoted ? 'voted' : ''}`}
@@ -1776,28 +2071,8 @@ return (
       <div className="modal-overlay" onClick={() => setShowSettings(false)}>
         <div className="modal-content" onClick={(e) => e.stopPropagation()}>
           <h2>Game Settings</h2>
-          <div className="settings-section">
+<div className="settings-section">
             <p className="room-code-display">Room Code: <strong>{roomCode}</strong></p>
-          </div>
-{/* Theme Preference - für ALLE Spieler zugänglich */}
-          <div className="settings-section">
-            <p className="setting-label">Theme</p>
-            <div className="theme-toggle-row">
-              <button
-                type="button"
-                className={`theme-button ${playerTheme === 'dark' ? 'active' : ''}`}
-                onClick={() => handleUpdateTheme('dark')}
-              >
-                🌙 Dark
-              </button>
-              <button
-                type="button"
-                className={`theme-button ${playerTheme === 'light' ? 'active' : ''}`}
-                onClick={() => handleUpdateTheme('light')}
-              >
-                ☀️ Light
-              </button>
-            </div>
           </div>
 
 {/* Game Control - nur Host kann pausieren/fortsetzen */}
@@ -1837,7 +2112,7 @@ return (
                         onClick={() => handleUpdateSettings({ ...roomSettings, auto_advance_delay: sec })}
                         style={{
                           padding: '0.5rem',
-                          backgroundColor: roomSettings.auto_advance_delay === sec ? '#1DB954' : '#333',
+                          backgroundColor: roomSettings.auto_advance_delay === sec ? '#ff6b4a' : '#333',
                           color: roomSettings.auto_advance_delay === sec ? 'white' : '#aaa',
                           border: '1px solid #555',
                           borderRadius: '4px',
@@ -1921,7 +2196,7 @@ return (
         <div className="modal-content" onClick={(e) => e.stopPropagation()}>
           <h2>✏️ Custom </h2>
           <div className="custom-scenario-input-section">
-            <input
+<input
               type="text"
               value={scenario}
               onChange={(e) => setScenario(e.target.value)}
@@ -1929,9 +2204,6 @@ return (
               className="custom-scenario-input"
               autoFocus
             />
-            {scenario && (
-              <p className="hint" style={{ marginTop: '0.5rem' }}>Current: <strong>{scenario}</strong></p>
-            )}
           </div>
           <div className="actions" style={{ marginTop: '1rem' }}>
             <button 
