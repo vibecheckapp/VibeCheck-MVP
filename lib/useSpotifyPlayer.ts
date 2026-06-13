@@ -7,11 +7,15 @@ type UseSpotifyPlayerOptions = {
   playerId: string;
   isHost: boolean;
   roomCode?: string;
+  // Optional callback to suppress polling during critical transitions
+  onStateTransition?: (isTransitioning: boolean) => void;
 };
 
-export function useSpotifyPlayer({ playerId, isHost, roomCode }: UseSpotifyPlayerOptions) {
+export function useSpotifyPlayer({ playerId, isHost, roomCode, onStateTransition }: UseSpotifyPlayerOptions) {
   const accessTokenRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
+  // FIX: Track if polling should be suppressed
+  const pollingSuppressedRef = useRef(false);
   
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -256,6 +260,10 @@ export function useSpotifyPlayer({ playerId, isHost, roomCode }: UseSpotifyPlaye
 
 // Check current playback state from external device
   const checkPlaybackState = useCallback(async () => {
+    // FIX: Skip polling if suppressed (during critical transitions)
+    if (pollingSuppressedRef.current) {
+      return null;
+    }
     try {
       const token = await fetchToken();
       if (!token) return null; // Silently skip if no token
@@ -273,6 +281,14 @@ export function useSpotifyPlayer({ playerId, isHost, roomCode }: UseSpotifyPlaye
       return null;
     }
   }, [fetchToken]);
+
+  // FIX: Expose functions to control polling
+  const suppressPolling = useCallback((suppress: boolean) => {
+    pollingSuppressedRef.current = suppress;
+    if (onStateTransition) {
+      onStateTransition(suppress);
+    }
+  }, [onStateTransition]);
 
 // Poll playback state every 2 seconds to keep UI in sync
   useEffect(() => {
@@ -296,7 +312,7 @@ export function useSpotifyPlayer({ playerId, isHost, roomCode }: UseSpotifyPlaye
     return () => clearInterval(interval);
   }, [isHost, checkPlaybackState]);
 
-  return {
+return {
     ready,
     error,
     premiumRequired: false, // No longer needed - we control external app
@@ -309,6 +325,7 @@ export function useSpotifyPlayer({ playerId, isHost, roomCode }: UseSpotifyPlaye
     seek,
     nextTrack,
     fetchToken,
+    suppressPolling, // FIX: Expose polling control
   };
 }
 

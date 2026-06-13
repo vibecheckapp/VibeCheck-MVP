@@ -138,26 +138,12 @@ const [playerLastSeen, setPlayerLastSeen] = useState<Record<string, string>>({})
 // Best song playback
   const [bestSongUri, setBestSongUri] = useState<string | null>(null);
   const [autoPlayedBest, setAutoPlayedBest] = useState(false);
-// Auto-start lobby transition timer when scoreboard is shown
+// FIX: Reset playback state when scoreboard is shown (prevents stale state conflicts)
   useEffect(() => {
-    if (roundState?.status === 'finished' && !isInTransition) {
-      // Immediately start 5-second countdown when scoreboard is displayed
-      setIsInTransition(true);
-      setLobbyTransitionTime(5);
-      
-      const timer = setInterval(() => {
-        setLobbyTransitionTime((prev) => {
-          const next = (prev ?? 1) - 1;
-          if (next <= 0) {
-            clearInterval(timer);
-            setIsInTransition(false);
-            return null;
-          }
-          return next;
-        });
-      }, 1000);
-      
-      return () => clearInterval(timer);
+    if (roundState?.status === 'finished') {
+      // Reset playback state when entering scoreboard
+      setPlaybackActive(false);
+      setCurrentPlayingUri(null);
     }
   }, [roundState?.status]);
   // Unterdrückt das Lookup-Round-Sync kurzzeitig — verhindert Race zwischen
@@ -267,7 +253,15 @@ setPlayers(data.players ?? []);
   const isHost = currentPlayer?.id && room?.host_id ? currentPlayer.id === room.host_id : false;
 
 // Initialize Spotify player - controls external Spotify app via REST API
-  const spotify = useSpotifyPlayer({ playerId: currentPlayer?.id ?? '', isHost, roomCode: room?.room_code });
+  // FIX: Add callback to suppress polling during critical transitions
+  const spotify = useSpotifyPlayer({ 
+    playerId: currentPlayer?.id ?? '', 
+    isHost, 
+    roomCode: room?.room_code,
+    onStateTransition: (isTransitioning) => {
+      setIsRoundTransitioning(isTransitioning);
+    }
+  });
 
 useEffect(() => {
     if (spotify?.error) {
@@ -884,8 +878,21 @@ window.location.href = `/api/spotify/auth?playerId=${savedPlayerId}`;
   };
 
 // Helper: Play a track by URI - used for auto-play when advancing to next player
+  // FIX: Added guard to prevent multiple simultaneous auto-play calls
   const playTrackUri = async (trackUri: string) => {
     if (!trackUri) return;
+    
+    // FIX: Prevent multiple auto-play calls
+    if (autoPlayInProgressRef.current) {
+      console.log('[playTrackUri] Auto-play already in progress, skipping');
+      return;
+    }
+    autoPlayInProgressRef.current = true;
+    
+    // FIX: Suppress polling during auto-play to prevent state conflicts
+    if (spotify?.suppressPolling) {
+      spotify.suppressPolling(true);
+    }
     
     try {
       // Use REST API to control external Spotify app
@@ -900,6 +907,15 @@ window.location.href = `/api/spotify/auth?playerId=${savedPlayerId}`;
         return;
       }
       console.error('Auto-play error:', playError);
+    } finally {
+      // Reset guard after a delay to prevent rapid re-triggers
+      setTimeout(() => {
+        autoPlayInProgressRef.current = false;
+        // FIX: Re-enable polling after auto-play completes
+        if (spotify?.suppressPolling) {
+          spotify.suppressPolling(false);
+        }
+      }, 2000);
     }
   };
 
@@ -1050,11 +1066,23 @@ const effectivePaused = !!roundState && roundState.status === 'playing' && (isPa
 
     const winnerUri = winnerSong.uri;
 
-// Play via REST API to control external Spotify app
+// FIX: Play via REST API with guard to prevent conflicts
     const playWinner = async () => {
+      // FIX: Prevent multiple auto-play calls
+      if (autoPlayInProgressRef.current) {
+        console.log('[playWinner] Auto-play already in progress, skipping');
+        return;
+      }
+      autoPlayInProgressRef.current = true;
+      
+      // FIX: Suppress polling during winner song auto-play
+      if (spotify?.suppressPolling) {
+        spotify.suppressPolling(true);
+      }
+      
       try {
         if (spotify?.play) {
-await spotify.play(winnerUri);
+          await spotify.play(winnerUri);
           setCurrentPlayingUri(winnerUri);
           setWinnerSongPlayed(true);
           // After auto-play: button shows "⏸" (music is playing, click to pause)
@@ -1067,6 +1095,14 @@ await spotify.play(winnerUri);
           return;
         }
         console.error('Auto-play winner song error:', error);
+      } finally {
+        setTimeout(() => {
+          autoPlayInProgressRef.current = false;
+          // FIX: Re-enable polling after winner song starts
+          if (spotify?.suppressPolling) {
+            spotify.suppressPolling(false);
+          }
+        }, 2000);
       }
     };
     playWinner();
@@ -1294,12 +1330,19 @@ console.log('[Auto-play] Round updated, track URI:', currentPickUri);
     currentPickUriRef.current = currentPick?.uri ?? null;
   }, [currentPick?.uri]);
 
+// FIX: Auto-play guard to prevent multiple simultaneous auto-play calls
+  const autoPlayInProgressRef = useRef<boolean>(false);
+
+// FIX: Track round status to prevent polling during transitions
+  const [isRoundTransitioning, setIsRoundTransitioning] = useState(false);
+
 // FIX: Playback loading state for smooth UI
   const [playbackLoading, setPlaybackLoading] = useState(false);
   const MIN_LOADING_MS = 300;
 
 // FIX: Play/Pause button now controls external Spotify app via REST API
 // Button shows: "⏸" when playing (click to pause), "▶" when paused (click to resume)
+// FIX: Added polling suppression during manual play/pause to prevent state conflicts
 const handlePlayPause = async () => {
     // Debounce - prevent rapid clicking causing race conditions
     const now = Date.now();
@@ -1311,6 +1354,11 @@ const handlePlayPause = async () => {
 
     if (!playerCanControl || !currentPlayer?.id || !currentPick || effectivePaused) return;
 
+    // FIX: Suppress polling during manual control
+    if (spotify?.suppressPolling) {
+      spotify.suppressPolling(true);
+    }
+    
     // Use the spotify hook to control playback
     setPlaybackLoading(true);
     setPlaybackBusy(true);
@@ -1337,6 +1385,12 @@ try {
     } finally {
       setPlaybackLoading(false);
       setPlaybackBusy(false);
+      // FIX: Re-enable polling after manual control
+      setTimeout(() => {
+        if (spotify?.suppressPolling) {
+          spotify.suppressPolling(false);
+        }
+      }, 1500);
     }
   };
 

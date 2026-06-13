@@ -1,22 +1,24 @@
-# TODO: Fix Play/Pause Button Logic
+# TODO - Spotify Playback Fixes
 
-## Task: Fix playback pause functionality - button pauses on click and resumes on second click
+## Task: Fix Spotify playback stuttering and multiple restarts
 
-### Steps:
-1. [x] Fix isPlaying state logic in handlePlayPause - when playing, click should pause and show "▶", when paused click should resume and show "⏸"
-2. [x] Fix auto-play code to set correct initial state
-3. [x] Update button display logic to use playbackActive instead of isPlaying
-4. [x] Test the changes
+### Issues Identified:
 
-### Files to Edit:
-- components/RoomClient.tsx
+1. **Scoreboard auto-play conflict**: Winner song auto-plays while lobby transition starts simultaneously
+2. **Race in `waitForRoundAndPlay`**: Multiple rapid play attempts on new player turn
+3. **Polling state conflicts**: 2-second polling updates state during transitions
+4. **No debounce on state changes**: Multiple setRoundState calls cause UI flicker
+5. **Missing playback state cleanup**: No proper reset when scoreboard shows
 
-### Summary:
-The current Play/Pause button has inverted logic. Fixed it so:
-- Click when music is playing → pauses and shows "▶" (Play/Resume icon)
-- Click when music is paused → resumes and shows "⏸" (Pause icon)
+### Fixes Implemented:
 
-### Changes Made:
-1. handlePlayPause: Now uses playbackActive to determine state
-2. Button display: Uses playbackActive ? '⏸' : '▶' instead of isPlaying
-3. Auto-play code: Removed setIsPlaying() calls, only sets playbackActive
+1. [x] Add `autoPlayInProgressRef` in RoomClient.tsx to prevent multiple simultaneous auto-play calls
+2. [x] Add playback state cleanup when entering scoreboard (`setPlaybackActive(false)`, `setCurrentPlayingUri(null)`)
+3. [x] Add `suppressPolling` function in useSpotifyPlayer.ts to skip polling during critical transitions
+4. [x] Call `suppressPolling(true)` during auto-play in `playTrackUri`, `playWinner`, and `handlePlayPause`
+5. [x] Add delay before re-enabling polling (1.5s) to prevent state conflicts
+
+### Next Steps:
+- Test playback flow on new player turn
+- Test playback flow on scoreboard display
+- Monitor for any remaining stuttering issues
