@@ -1,24 +1,28 @@
-# TODO - Spotify Playback Fixes
+# Fix Plan - Spotify Autoplay Issue
 
-## Task: Fix Spotify playback stuttering and multiple restarts
+## Problem
+When Spotify is not open and host clicks Play, the current displayed song is not played. The user needs to manually retry after opening Spotify.
 
-### Issues Identified:
+## Root Cause
+- When Spotify app is not running, there is no active device
+- After opening Spotify, the playback doesn't automatically retry
+- The wrong song might be played
 
-1. **Scoreboard auto-play conflict**: Winner song auto-plays while lobby transition starts simultaneously
-2. **Race in `waitForRoundAndPlay`**: Multiple rapid play attempts on new player turn
-3. **Polling state conflicts**: 2-second polling updates state during transitions
-4. **No debounce on state changes**: Multiple setRoundState calls cause UI flicker
-5. **Missing playback state cleanup**: No proper reset when scoreboard shows
+## Solution Steps
 
-### Fixes Implemented:
+### 1. Improve Error Handling in useSpotifyPlayer.ts
+- Better error message when no device found: "Bitte starte Spotify und klicke erneut"
+- Add auto-retry logic when Spotify opens
 
-1. [x] Add `autoPlayInProgressRef` in RoomClient.tsx to prevent multiple simultaneous auto-play calls
-2. [x] Add playback state cleanup when entering scoreboard (`setPlaybackActive(false)`, `setCurrentPlayingUri(null)`)
-3. [x] Add `suppressPolling` function in useSpotifyPlayer.ts to skip polling during critical transitions
-4. [x] Call `suppressPolling(true)` during auto-play in `playTrackUri`, `playWinner`, and `handlePlayPause`
-5. [x] Add delay before re-enabling polling (1.5s) to prevent state conflicts
+### 2. Ensure Correct Track URI is Used
+- The play function should use the track URI from currentPick
+- Ensure the URI is passed correctly from RoomClient
 
-### Next Steps:
-- Test playback flow on new player turn
-- Test playback flow on scoreboard display
-- Monitor for any remaining stuttering issues
+### 3. Add Device Detection Refresh
+- After error, refresh device list and retry automatically
+
+## Implementation
+
+1. [x] Analyze the files
+2. [x] Update useSpotifyPlayer.ts - improve error handling and add retry
+3. [ ] Test the implementation

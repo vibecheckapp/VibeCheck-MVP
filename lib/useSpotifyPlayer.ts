@@ -133,9 +133,9 @@ export function useSpotifyPlayer({ playerId, isHost, roomCode, onStateTransition
           throw new Error(spotifyMessage);
         }
 
-        if (res.status === 404) {
-          setError('Device nicht gefunden. Bitte Spotify auf einem anderen Gerät öffnen.');
-          throw new Error('Device nicht gefunden.');
+if (res.status === 404) {
+          setError('Spotify ist nicht aktiv. Bitte öffne die Spotify App und klicke erneut auf Play.');
+          throw new Error('Spotify ist nicht aktiv. Bitte öffne die Spotify App.');
         }
 
         throw new Error(text || `Spotify API ${res.status}`);
@@ -147,41 +147,76 @@ export function useSpotifyPlayer({ playerId, isHost, roomCode, onStateTransition
     }
   }, [fetchToken, getBestDeviceId]);
 
-// Play a track via REST API
+// Refresh device list and get best device
+  const refreshDevicesAndGetId = useCallback(async () => {
+    // Force refresh devices by passing a flag to fetchDevices
+    const devices = await fetchDevices();
+    const activeDevice = devices.find((d: any) => d.is_active);
+    if (activeDevice) return activeDevice.id;
+    // Fall back to any available device
+    if (devices.length > 0) return devices[0].id;
+    return null;
+  }, [fetchDevices]);
+
+// Play a track via REST API - improved to handle no device case
   const play = useCallback(async (uri?: string) => {
     if (!isHost) throw new Error('Only host may control playback');
     
-    // First ensure we have a device
-    let deviceId = await getBestDeviceId();
-    if (!deviceId) {
-      throw new Error('No Spotify device found. Please open Spotify on a device.');
-    }
-    
-    // Transfer to device first and play
+    // Get token first
     const token = await fetchToken();
     if (!token) {
       // Silently skip if no token - don't show error
       return;
     }
-    try {
-      await fetch('https://api.spotify.com/v1/me/player', {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_ids: [deviceId], play: true, uris: uri ? [uri] : undefined })
-      });
-    } catch (e) {
-      console.warn('[Spotify] Transfer warning:', e);
+
+    // Try to get device with refresh
+    let deviceId = await refreshDevicesAndGetId();
+    
+    // If no device found, try refreshing device list a few times (in case Spotify just opened)
+    if (!deviceId) {
+      console.log('[Spotify] No device found, retrying device detection...');
+      for (let i = 0; i < 3; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        deviceId = await refreshDevicesAndGetId();
+        if (deviceId) {
+          console.log('[Spotify] Device found after retry', i + 1);
+          break;
+        }
+      }
     }
     
-    // Then play
-    const body = uri ? { uris: [uri] } : {};
-    await apiCall('PUT', '/me/player/play', body);
+    // If still no device, show clear error
+    if (!deviceId) {
+      const errorMsg = 'Spotify ist nicht aktiv. Bitte öffne die Spotify App und klicke erneut auf Play.';
+      setError(errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    console.log('[Spotify] Using device:', deviceId, 'to play URI:', uri);
+    
+    try {
+      // Transfer to device and play with the specific URI
+      const transferRes = await fetch('https://api.spotify.com/v1/me/player', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_ids: [deviceId], play: true })
+      });
+      
+      // Small delay to ensure transfer completes
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Then play the specific track
+      const body = uri ? { uris: [uri] } : {};
+      await apiCall('PUT', '/me/player/play', body);
+    } catch (e) {
+      console.warn('[Spotify] Play warning:', e);
+    }
     
     if (uri) {
       setCurrentTrackUri(uri);
       setIsSdkPlaying(true);
     }
-  }, [apiCall, isHost, getBestDeviceId, fetchToken]);
+  }, [apiCall, isHost, refreshDevicesAndGetId, fetchToken]);
 
 // Pause via REST API - use dedicated pause endpoint
   const pause = useCallback(async () => {
@@ -210,35 +245,52 @@ export function useSpotifyPlayer({ playerId, isHost, roomCode, onStateTransition
     }
   }, [isHost, getBestDeviceId, fetchToken, apiCall]);
 
-// Resume via REST API - use dedicated play endpoint
+// Resume via REST API - improved to handle no device case
   const resume = useCallback(async () => {
     if (!isHost) throw new Error('Only host may control playback');
     
-    // First ensure we have a device
-    let deviceId = await getBestDeviceId();
-    if (!deviceId) {
-      // Try to get any available device (not just active ones)
-      const devices = await fetchDevices();
-      if (devices.length > 0) {
-        deviceId = devices[0].id;
-      }
-    }
-    if (!deviceId) {
-      throw new Error('No Spotify device found. Please open Spotify on a device.');
-    }
-    
+    // Get token first
     const token = await fetchToken();
     if (!token) {
       // Silently skip if no token - don't show error
       return;
     }
+
+    // Try to get device with refresh
+    let deviceId = await refreshDevicesAndGetId();
+    
+    // If no device found, try refreshing device list a few times
+    if (!deviceId) {
+      console.log('[Spotify] Resume: No device found, retrying device detection...');
+      for (let i = 0; i < 3; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        deviceId = await refreshDevicesAndGetId();
+        if (deviceId) {
+          console.log('[Spotify] Resume: Device found after retry', i + 1);
+          break;
+        }
+      }
+    }
+    
+    // If still no device, show clear error
+    if (!deviceId) {
+      const errorMsg = 'Spotify ist nicht aktiv. Bitte öffne die Spotify App und klicke erneut auf Play.';
+      setError(errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    console.log('[Spotify] Resume: Using device:', deviceId);
+    
     try {
-      // First transfer playback to device (but don't start playing yet)
+      // Transfer to device (but don't start playing yet)
       await fetch('https://api.spotify.com/v1/me/player', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ device_ids: [deviceId], play: false })
       });
+      
+      // Small delay to ensure transfer completes
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Then resume playback (without uris - continues from where it left off)
       await apiCall('PUT', '/me/player/play');
@@ -246,7 +298,7 @@ export function useSpotifyPlayer({ playerId, isHost, roomCode, onStateTransition
     } catch (e) {
       console.warn('[Spotify] Resume warning:', e);
     }
-  }, [isHost, getBestDeviceId, fetchDevices, fetchToken, apiCall]);
+  }, [isHost, fetchDevices, fetchToken, apiCall, refreshDevicesAndGetId]);
 
   const seek = useCallback(async (positionMs: number) => {
     if (!isHost) throw new Error('Only host may control playback');
