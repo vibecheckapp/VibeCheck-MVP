@@ -266,7 +266,7 @@ setPlayers(data.players ?? []);
   // Determine host flag early so hooks can use it
   const isHost = currentPlayer?.id && room?.host_id ? currentPlayer.id === room.host_id : false;
 
-  // Initialize embedded Spotify Web Playback SDK for the host only
+// Initialize Spotify player - controls external Spotify app via REST API
   const spotify = useSpotifyPlayer({ playerId: currentPlayer?.id ?? '', isHost, roomCode: room?.room_code });
 
 useEffect(() => {
@@ -311,52 +311,8 @@ useEffect(() => {
     }
   }, [nextError]);
 
-// FIX: Enhanced SDK state listener - more robust state sync with polling
-  useEffect(() => {
-    const sdkPlayer = (window as any)?.__vibecheck_spotify_player_instance?.player;
-    if (!isHost || !sdkPlayer) return;
-
-    // Poll SDK state every 2 seconds to keep UI in sync
-    const pollState = async () => {
-      try {
-        const state = await sdkPlayer.getCurrentState();
-        if (state) {
-          // isPlaying = true means paused (button shows "Play")
-          // isPlaying = false means playing (button shows "Pause")
-          setIsPlaying(state.paused);
-          setPlaybackActive(!state.paused);
-        }
-      } catch {
-        // Ignore - SDK may not be ready
-      }
-    };
-
-    // Initial state fetch
-    pollState();
-
-    // Poll every 2 seconds for reliable sync
-    const pollInterval = setInterval(pollState, 2000);
-
-    const onStateChange = (state: any) => {
-      if (!state) {
-        // If no state, poll to get actual state
-        pollState();
-        return;
-      }
-      // Sync local state with actual SDK state immediately
-      setIsPlaying(state.paused);
-      setPlaybackActive(!state.paused);
-    };
-
-    sdkPlayer.addListener('player_state_changed', onStateChange);
-
-    return () => {
-      clearInterval(pollInterval);
-      try {
-        sdkPlayer.removeListener('player_state_changed', onStateChange);
-      } catch {}
-    };
-  }, [isHost, spotify?.ready]);
+// FIX: Playback state is now managed via the useSpotifyPlayer hook polling
+  // No additional SDK-specific code needed - REST API handles all playback
 
 // Centralized server-authoritative sync: subscribe to room_events and apply snapshots
   useEffect(() => {
@@ -922,9 +878,29 @@ const response = await fetch(`/api/rounds/${roundId}?playerId=${savedPlayerId}`)
     fetchRound(room.active_round_id);
   }, [room?.active_round_id]);
 
-  const handleConnectSpotify = () => {
+const handleConnectSpotify = () => {
     if (!savedPlayerId) return;
 window.location.href = `/api/spotify/auth?playerId=${savedPlayerId}`;
+  };
+
+// Helper: Play a track by URI - used for auto-play when advancing to next player
+  const playTrackUri = async (trackUri: string) => {
+    if (!trackUri) return;
+    
+    try {
+      // Use REST API to control external Spotify app
+      if (spotify?.play) {
+        await spotify.play(trackUri);
+        setCurrentPlayingUri(trackUri);
+      }
+    } catch (playError: any) {
+      const msg = String(playError?.message ?? '');
+      if (msg.toLowerCase().includes('restriction') || msg.toLowerCase().includes('spotify')) {
+        setPlaybackError('Auto-Play: Bitte manuell auf Play drücken.');
+        return;
+      }
+      console.error('Auto-play error:', playError);
+    }
   };
 
 const handlePauseGame = async (action: 'pause' | 'resume') => {
@@ -1074,35 +1050,16 @@ const effectivePaused = !!roundState && roundState.status === 'playing' && (isPa
 
     const winnerUri = winnerSong.uri;
 
-// Play immediately when scoreboard is available
-    // FIX: Use SDK directly for reliable auto-play
+// Play via REST API to control external Spotify app
     const playWinner = async () => {
-      const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
       try {
-        // Pause first via SDK
-        if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
-          try { await sdkPlayer.pause(); } catch { /* ignore */ }
+        if (spotify?.play) {
+await spotify.play(winnerUri);
+          setCurrentPlayingUri(winnerUri);
+          setWinnerSongPlayed(true);
+          // After auto-play: button shows "⏸" (music is playing, click to pause)
+          setPlaybackActive(true);
         }
-        await new Promise(r => setTimeout(r, 100));
-        setCurrentPlayingUri(null);
-        
-        // Play via SDK directly
-        if (sdkPlayer && typeof sdkPlayer.play === 'function') {
-          await sdkPlayer.play({ uris: [winnerUri] });
-        } else {
-          // Fallback: REST API
-          const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
-            .then(r => r.json()).then(j => j.access_token).catch(() => null);
-          if (token && spotify?.deviceId) {
-            await fetch('https://api.spotify.com/v1/me/player', {
-              method: 'PUT',
-              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ device_ids: [spotify.deviceId], play: true, uris: [winnerUri] })
-            });
-          }
-        }
-        setCurrentPlayingUri(winnerUri);
-        setWinnerSongPlayed(true);
       } catch (error: any) {
         const msg = String(error?.message ?? '');
         if (msg.toLowerCase().includes('restriction') || msg.toLowerCase().includes('spotify')) {
@@ -1114,24 +1071,13 @@ const effectivePaused = !!roundState && roundState.status === 'playing' && (isPa
     };
     playWinner();
 
-let stopTimeout: NodeJS.Timeout | null = null;
+    let stopTimeout: NodeJS.Timeout | null = null;
     if (roomSettings.auto_play_winner_duration > 0) {
-      // FIX: Use SDK for auto-stop
+      // Use REST API for auto-stop
       stopTimeout = setTimeout(async () => {
-        const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
         try {
-          if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
-            await sdkPlayer.pause();
-          } else {
-            // REST API fallback
-            const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
-              .then(r => r.json()).then(j => j.access_token).catch(() => null);
-            if (token) {
-              await fetch('https://api.spotify.com/v1/me/player/pause', {
-                method: 'PUT',
-                headers: { Authorization: `Bearer ${token}` }
-              });
-            }
+          if (spotify?.pause) {
+            await spotify.pause();
           }
         } catch (error) {
           console.error('Auto-stop winner song error:', error);
@@ -1150,7 +1096,8 @@ let stopTimeout: NodeJS.Timeout | null = null;
     isHost,
     spotify?.ready,
     roomSettings.auto_play_winner_song,
-    roomSettings.auto_play_winner_duration
+    roomSettings.auto_play_winner_duration,
+    spotify
   ]);
 
   const canNext = isHost && roundState?.status === 'playing' && allVotesReady;
@@ -1185,44 +1132,28 @@ if (data.round?.id) {
         fetchRound(data.round.id);
         
 // Auto-play first song when round starts (host only)
-        // FIX: Use SDK directly for reliable auto-play
-        if (isHost && data.round.current_pick?.uri) {
-          setTimeout(async () => {
-            const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
-            const trackUri = data.round.current_pick.uri;
-            try {
-              // Pause first via SDK
-              if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
-                try { await sdkPlayer.pause(); } catch { /* ignore */ }
-              }
+        // FIX: Use ref to avoid stale closure
+        if (isHost) {
+          console.log('[Auto-play] Scheduling auto-play after round loads');
+          
+          // Use ref to get the current track URI (avoids stale closure)
+          const waitForRoundAndPlay = async () => {
+            // Wait up to 2 seconds for roundState to update
+            for (let i = 0; i < 20; i++) {
               await new Promise(r => setTimeout(r, 100));
-              setCurrentPlayingUri(null);
-              
-              // Play via SDK directly
-              if (sdkPlayer && typeof sdkPlayer.play === 'function') {
-                await sdkPlayer.play({ uris: [trackUri] });
-              } else {
-                // Fallback: REST API
-                const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
-                  .then(r => r.json()).then(j => j.access_token).catch(() => null);
-                if (token && spotify?.deviceId) {
-                  await fetch('https://api.spotify.com/v1/me/player', {
-                    method: 'PUT',
-                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ device_ids: [spotify.deviceId], play: true, uris: [trackUri] })
-                  });
-                }
-              }
-              setCurrentPlayingUri(trackUri);
-            } catch (playError: any) {
-              const msg = String(playError?.message ?? '');
-              if (msg.toLowerCase().includes('restriction') || msg.toLowerCase().includes('spotify')) {
-                setPlaybackError('Auto-Play: Bitte manuell auf Play drücken.');
+              const currentPickUri = currentPickUriRef.current;
+              if (currentPickUri) {
+console.log('[Auto-play] Round loaded, track URI:', currentPickUri);
+                await playTrackUri(currentPickUri);
+                // After auto-play: button shows "⏸" (music is playing, click to pause)
+                setPlaybackActive(true);
                 return;
               }
-              console.error('Auto-play first song error:', playError);
             }
-          }, 500);
+            console.log('[Auto-play] Timeout waiting for roundState');
+          };
+          
+          waitForRoundAndPlay();
         }
       }
     } catch (error) {
@@ -1325,44 +1256,28 @@ setVoteScore(null);
       setIsTransitioning(false);
       
 // Auto-play new song when advancing to next player (host only)
-      // FIX: Use SDK directly for reliable auto-play
-      if (isHost && data.pick.uri) {
-        setTimeout(async () => {
-          const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
-          const trackUri = data.pick.uri;
-          try {
-            // Pause first via SDK
-            if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
-              try { await sdkPlayer.pause(); } catch { /* ignore */ }
-            }
+      // FIX: Use ref to avoid stale closure
+      if (isHost) {
+        console.log('[Auto-play] Scheduling auto-play after next player');
+        
+        // Use ref to get the current track URI (avoids stale closure)
+        const waitForRoundAndPlay = async () => {
+          // Wait up to 2 seconds for roundState to update
+          for (let i = 0; i < 20; i++) {
             await new Promise(r => setTimeout(r, 100));
-            setCurrentPlayingUri(null);
-            
-            // Play via SDK directly
-            if (sdkPlayer && typeof sdkPlayer.play === 'function') {
-              await sdkPlayer.play({ uris: [trackUri] });
-            } else {
-              // Fallback: REST API
-              const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
-                .then(r => r.json()).then(j => j.access_token).catch(() => null);
-              if (token && spotify?.deviceId) {
-                await fetch('https://api.spotify.com/v1/me/player', {
-                  method: 'PUT',
-                  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ device_ids: [spotify.deviceId], play: true, uris: [trackUri] })
-                });
-              }
-            }
-            setCurrentPlayingUri(trackUri);
-          } catch (playError: any) {
-            const msg = String(playError?.message ?? '');
-            if (msg.toLowerCase().includes('restriction') || msg.toLowerCase().includes('spotify')) {
-              setPlaybackError('Auto-Play: Bitte manuell auf Play drücken.');
+            const currentPickUri = currentPickUriRef.current;
+            if (currentPickUri) {
+console.log('[Auto-play] Round updated, track URI:', currentPickUri);
+              await playTrackUri(currentPickUri);
+              // After auto-play: button shows "⏸" (music is playing, click to pause)
+              setPlaybackActive(true);
               return;
             }
-            console.error('Auto-play next song error:', playError);
           }
-        }, 500);
+          console.log('[Auto-play] Timeout waiting for roundState');
+        };
+        
+        waitForRoundAndPlay();
       } else {
         setCurrentPlayingUri(data.pick.uri);
       }
@@ -1373,31 +1288,20 @@ setVoteScore(null);
   const lastPlaybackActionRef = useRef<number>(0);
   const MIN_ACTION_INTERVAL_MS = 500;
 
-// FIX: Song is currently playing (not paused) - derived from SDK state directly when needed
-  // This is the authoritative state - no local state syncing that can get out of sync
+// FIX: Use ref to track the current pick for auto-play (avoids stale closure)
+  const currentPickUriRef = useRef<string | null>(null);
+  useEffect(() => {
+    currentPickUriRef.current = currentPick?.uri ?? null;
+  }, [currentPick?.uri]);
+
+// FIX: Playback loading state for smooth UI
   const [playbackLoading, setPlaybackLoading] = useState(false);
   const MIN_LOADING_MS = 300;
 
-// FIX: Mobile detection helper
-  const isMobileBrowser = typeof window !== 'undefined' && 
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-  // FIX: Helper to get actual playback state directly from SDK - this is the authoritative source
-  const getSdkPlaybackState = async (): Promise<{ isPlaying: boolean; position: number } | null> => {
-    const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
-    if (!sdkPlayer) return null;
-    try {
-      const state = await sdkPlayer.getCurrentState();
-      if (state) {
-        // SDK: paused = true means not playing, paused = false means playing
-        return { isPlaying: !state.paused, position: state.position };
-      }
-    } catch { /* SDK not ready */ }
-    return null;
-  };
-
-  const handlePlayPause = async () => {
-    // FIX: Debounce - prevent rapid clicking causing race conditions
+// FIX: Play/Pause button now controls external Spotify app via REST API
+// Button shows: "⏸" when playing (click to pause), "▶" when paused (click to resume)
+const handlePlayPause = async () => {
+    // Debounce - prevent rapid clicking causing race conditions
     const now = Date.now();
     if (now - lastPlaybackActionRef.current < MIN_ACTION_INTERVAL_MS) {
       console.log('[handlePlayPause] Debouncing - too soon after last action');
@@ -1405,120 +1309,34 @@ setVoteScore(null);
     }
     lastPlaybackActionRef.current = now;
 
-if (!playerCanControl || !currentPlayer?.id || !currentPick || effectivePaused) return;
+    if (!playerCanControl || !currentPlayer?.id || !currentPick || effectivePaused) return;
 
-    // FIX: Show mobile warning - but don't block, just notify
-    if (isMobileBrowser) {
-      setPlaybackError('Spotify Web Playback works on desktop only. Please use Spotify Connect on your mobile device or join from a desktop browser.');
-      return;
-    }
-
-// FIX: Use stable loading state - set loading BEFORE operation
+    // Use the spotify hook to control playback
     setPlaybackLoading(true);
     setPlaybackBusy(true);
     setPlaybackError(null);
 
-    try {
-      // Use SDK directly - no wrapper check needed
-      const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
-      
-      // FIX: Get DIRECT state from SDK - this is authoritative and always fresh
-      const sdkState = await getSdkPlaybackState();
-      
-      // If SDK returns null, assume paused (safest default)
-      // sdkState.isPlaying = true means music is playing
-      // sdkState.isPlaying = false means music is paused
-      const isCurrentlyPlaying = sdkState?.isPlaying ?? false;
-      
-      // shouldStartPlayback = true means we need to START playback (currently paused)
-      // shouldStartPlayback = false means we need to PAUSE (currently playing)
-      const shouldStartPlayback = !isCurrentlyPlaying;
-
-      // FIX: Always use the CURRENT pick's URI - never use cached currentPlayingUri
-      // This ensures we play the correct song that's displayed
-      const trackUri = currentPick?.uri;
-      if (!trackUri) {
-        setPlaybackError('Track URI missing');
-        setPlaybackLoading(false);
-        setPlaybackBusy(false);
-        return;
-      }
-
-if (shouldStartPlayback) {
-        // FIX: Try pause first via SDK
-        if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
-          try { await sdkPlayer.pause(); } catch { /* ignore */ }
+try {
+      if (playbackActive) {
+        // Music is playing - pause it (stays at current position)
+        if (spotify?.pause) {
+          await spotify.pause();
         }
-        // Short delay for Spotify to settle
-        await new Promise(r => setTimeout(r, 100));
-        
-        // Clear before playing to ensure fresh state
-        setCurrentPlayingUri(null);
-        
-        // FIX: Play directly via SDK - always play the current pick's URI
-        if (sdkPlayer && typeof sdkPlayer.play === 'function') {
-          await sdkPlayer.play({ uris: [trackUri] });
-        } else {
-          // Fallback: try REST API if SDK not available
-          // This handles the case where user has Spotify on another device
-          const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
-            .then(r => r.json())
-            .then(json => json.access_token)
-            .catch(() => null);
-          
-          if (token) {
-            // Transfer playback to best device and play
-            await fetch('https://api.spotify.com/v1/me/player', {
-              method: 'PUT',
-              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ device_ids: [spotify?.deviceId ?? ''].filter(Boolean), play: true, uris: [trackUri] })
-            });
-          }
-        }
-        
-        // Update to track what we're trying to play
-        setCurrentPlayingUri(trackUri);
+        // After pausing: button shows "▶" (Play/Resume icon)
+        setPlaybackActive(false);
       } else {
-        // Pause directly via SDK
-        if (sdkPlayer && typeof sdkPlayer.pause === 'function') {
-          await sdkPlayer.pause();
-        } else {
-          // Fallback: try REST API
-          const token = await fetch('/api/spotify/player-token?playerId=' + currentPlayer?.id)
-            .then(r => r.json())
-            .then(json => json.access_token)
-            .catch(() => null);
-          
-          if (token) {
-            await fetch('https://api.spotify.com/v1/me/player/pause', {
-              method: 'PUT',
-              headers: { Authorization: `Bearer ${token}` }
-            });
-          }
+        // Music is paused - resume from current position (NOT restart from beginning)
+        if (spotify?.resume) {
+          await spotify.resume();
         }
+        // After resuming: button shows "⏸" (Pause icon)
+        setPlaybackActive(true);
       }
-
-// FIX: Keep loading indicator for minimum time to prevent flickering
-      await new Promise(resolve => setTimeout(resolve, MIN_LOADING_MS));
     } catch (error: any) {
       setPlaybackError(error?.message ?? 'Error controlling playback.');
     } finally {
       setPlaybackLoading(false);
       setPlaybackBusy(false);
-      
-      // FIX: Quick state sync after operation completes - ensure button updates immediately
-      const sdkPlayer = (window as any).__vibecheck_spotify_player_instance?.player;
-      if (sdkPlayer) {
-        try {
-          const state = await sdkPlayer.getCurrentState();
-          if (state) {
-            setIsPlaying(state.paused);
-            setPlaybackActive(!state.paused);
-          }
-        } catch {
-          // Ignore - will be synced by polling
-        }
-      }
     }
   };
 
@@ -1690,33 +1508,15 @@ return (
 
 return (
                       <div key={player.id} className={`player-card ${isMe ? 'is-me' : ''} ${isPlayerHost ? 'is-host' : ''}`}>
-                        <span className="player-name">
+<span className="player-name">
                           {isPlayerHost && <span className="host-badge">👑</span>}
-                          {player.name}
-                          {isMe && <span style={{ opacity: 0.6, fontSize: '0.8rem' }}> (du)</span>}
+                          <span className="player-name-text">{player.name}</span>
+                          {isMe && <span className="you-badge"> (you)</span>}
                         </span>
                         <div className="player-card-right">
-                        {/* Task 1: Clickable Spotify button - only clickable by the player themselves */}
+{/* Task 1: Clickable Spotify button - only clickable by the player themselves */}
                         <div className="player-spotify-controls">
-<div
-                            className={`spotify-status-icon ${hasSpotify ? 'connected' : 'disconnected'}`}
-                            aria-label={hasSpotify ? 'Spotify connected' : 'Spotify not connected'}
-                            title={hasSpotify ? 'Spotify connected' : 'Spotify not connected'}
-                          >
-                            {hasSpotify ? (
-                              <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
-                                <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.893-.982-.336.075-.668-.135-.744-.47-.077-.337.135-.668.47-.745 3.856-.88 7.15-.51 9.82.124.296.18.387.563.207.866zm1.224-2.724c-.226.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.08-1.182-.413.125-.847-.107-.972-.52-.125-.413.108-.847.52-.972 3.67-1.114 8.243-.574 11.35 1.335.366.226.486.706.257 1.08zM17.91 11.416c-3.262-1.937-8.644-2.115-11.75-1.173-.5.15-.1.916-.15.414-.15-.5.103-.918.414-1.07 3.585-1.087 9.53-.884 13.29 1.347.45.267.6.848.333 1.3-.267.45-.848.6-1.3.332z"/>
-                              </svg>
-                            ) : (
-                              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M9 18V5l12-2v13"></path>
-                                <circle cx="6" cy="18" r="3"></circle>
-                                <circle cx="18" cy="16" r="3"></circle>
-                                <line x1="3" y1="3" x2="21" y2="21"></line>
-                              </svg>
-                            )}
-                          </div>
-                          {isMe && !hasSpotify ? (
+{isMe && !hasSpotify ? (
                             <button
                               type="button"
                               className="spotify-connect-cta"
@@ -1724,10 +1524,32 @@ return (
                               aria-label="Connect Spotify"
                               title="Connect Spotify"
                             >
-                              <span className="spotify-connect-cta-icon">🎵</span>
-                              Connect Spotify
+                              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                <polyline points="15,3 21,3 21,9"></polyline>
+                                <line x1="10" y1="14" x2="21" y2="3"></line>
+                              </svg>
                             </button>
-                          ) : null}
+                          ) : (
+                            <div
+                              className={`spotify-status-icon ${hasSpotify ? 'connected' : 'disconnected'}`}
+                              aria-label={hasSpotify ? 'Spotify connected' : 'Spotify not connected'}
+                              title={hasSpotify ? 'Spotify connected' : 'Spotify not connected'}
+                            >
+                              {hasSpotify ? (
+                                <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
+                                  <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.893-.982-.336.075-.668-.135-.744-.47-.077-.337.135-.668.47-.745 3.856-.88 7.15-.51 9.82.124.296.18.387.563.207.866zm1.224-2.724c-.226.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.08-1.182-.413.125-.847-.107-.972-.52-.125-.413.108-.847.52-.972 3.67-1.114 8.243-.574 11.35 1.335.366.226.486.706.257 1.08zM17.91 11.416c-3.262-1.937-8.644-2.115-11.75-1.173-.5.15-.1.916-.15.414-.15-.5.103-.918.414-1.07 3.585-1.087 9.53-.884 13.29 1.347.45.267.6.848.333 1.3-.267.45-.848.6-1.3.332z"/>
+                                </svg>
+                              ) : (
+                                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M9 18V5l12-2v13"></path>
+                                  <circle cx="6" cy="18" r="3"></circle>
+                                  <circle cx="18" cy="16" r="3"></circle>
+                                  <line x1="3" y1="3" x2="21" y2="21"></line>
+                                </svg>
+                              )}
+                            </div>
+                          )}
                           {isHost && !isMe && !room?.active_round_id ? (
                             <button
                               type="button"
@@ -1988,15 +1810,14 @@ return (
 {/* Host Controls Stack */}
               {isHost && currentPick && !effectivePaused && (
                 <div className="host-controls-stack">
-                  <button
+<button
                     type="button"
                     className={`button play-button ${playbackLoading ? 'button-loading' : ''}`}
                     disabled={playbackBusy}
                     onClick={handlePlayPause}
                   >
-                    {/* FIX: Use isPlaying as proxy - isPlaying=true means SDK thinks paused, so button shows "Play" */}
-                    {/* The button text reflects what clicking it WILL do, not current state */}
-                    {playbackLoading ? '⏳' : playbackBusy ? '...' : isPlaying ? '▶ Play' : '⏸ Pause'}
+                    {/* Shows "⏸" when playing (click to pause), "▶" when paused (click to resume) */}
+                    {playbackLoading ? '⏳' : playbackBusy ? '...' : (playbackActive ? '⏸' : '▶')}
                   </button>
                   
                   {/* Next Player Button - grau/transparent bis alle gevoted haben */}
