@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to pause game' }, { status: 500 });
     }
 
+    await supabaseAdmin.from('rooms').update({ current_state: 'paused' }).eq('id', round.room_id);
+
     return NextResponse.json({ status: 'paused', paused_at: now });
   } else if (action === 'resume') {
     // Resume the game - clear paused_at timestamp
@@ -62,6 +64,8 @@ export async function POST(request: NextRequest) {
     if (resumeError) {
       return NextResponse.json({ error: 'Failed to resume game' }, { status: 500 });
     }
+
+    await supabaseAdmin.from('rooms').update({ current_state: 'playing' }).eq('id', round.room_id);
 
     return NextResponse.json({ status: 'resumed', paused_at: null });
   } else {

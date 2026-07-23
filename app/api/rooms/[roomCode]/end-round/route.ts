@@ -14,7 +14,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ro
 
   const { data: room, error: roomError } = await supabaseAdmin
     .from('rooms')
-    .select('id, host_id')
+    .select('id, host_id, active_round_id')
     .eq('room_code', roomCode.toUpperCase())
     .single();
 
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ro
   // Just clear active_round_id - no broadcast, no notifications
   const { error: updateError } = await supabaseAdmin
     .from('rooms')
-    .update({ active_round_id: null })
+    .update({ active_round_id: null, current_state: 'lobby' })
     .eq('id', room.id);
 
   if (updateError) {

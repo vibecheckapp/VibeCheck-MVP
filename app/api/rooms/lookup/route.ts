@@ -78,11 +78,23 @@ const { data: roomPlayers, error: roomPlayersError } = await supabaseAdmin
     return NextResponse.json({ error: 'Failed to load players' }, { status: 500 });
   }
 
+  const userIds = roomPlayers.map((entry: any) => entry.user_id);
+  const selectedAmount = Number((settings as any)?.library_amount ?? 100);
+  const selectedPeriod = (settings as any)?.library_period ?? 'long_term';
+  const { data: libraries } = await supabaseAdmin
+    .from('music_libraries')
+    .select('user_id')
+    .in('user_id', userIds)
+    .eq('amount', selectedAmount)
+    .eq('period', selectedPeriod);
+  const readyUsers = new Set((libraries ?? []).map((library: any) => library.user_id));
+
 // P0: Include last_seen for disconnect detection
   const players = roomPlayers.map((entry: any) => ({
     id: entry.user_id,
     name: entry.users?.display_name ?? 'Unknown',
     spotify_connected: Boolean(entry.users?.spotify_refresh_token),
+    library_ready: readyUsers.has(entry.user_id),
     last_seen: entry.last_seen ?? null,
   }));
 

@@ -68,7 +68,7 @@ export async function refreshSpotifyToken(refreshToken: string) {
   return response.json();
 }
 
-export async function getSpotifyAuthUrl(hostname: string, playerId: string) {
+export async function getSpotifyAuthUrl(hostname: string, playerId: string, returnTo = '') {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   if (!clientId) {
     throw new Error('Missing Spotify client id');
@@ -76,7 +76,7 @@ export async function getSpotifyAuthUrl(hostname: string, playerId: string) {
 
   const origin = process.env.NEXT_PUBLIC_APP_URL ? process.env.NEXT_PUBLIC_APP_URL : hostname;
   const redirectUri = `${origin}/api/spotify/callback`;
-  const state = Buffer.from(playerId).toString('base64');
+  const state = Buffer.from(JSON.stringify({ playerId, returnTo })).toString('base64url');
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -89,6 +89,7 @@ export async function getSpotifyAuthUrl(hostname: string, playerId: string) {
       'streaming',
       'playlist-read-private',
       'user-library-read',
+      'user-top-read',
     ].join(' '),
     redirect_uri: redirectUri,
     state,
@@ -98,6 +99,85 @@ export async function getSpotifyAuthUrl(hostname: string, playerId: string) {
 }
 
 export async function getSpotifyAccessTokenForUser(playerId: string) {
+  const supabaseAdmin = getSupabaseAdmin();
+  const { data: connection, error: connectionError } = await supabaseAdmin
+    .from('spotify_connections')
+    .select('access_token, refresh_token, expires_at')
+    .eq('user_id', playerId)
+    .maybeSingle();
+
+  let tokenOwner = connection;
+  if (connectionError && connectionError.code !== '42P01') {
+    throw new Error(connectionError.message);
+  }
+
+  // Legacy fallback keeps existing rooms playable until all connections are migrated.
+  if (!tokenOwner) {
+    const { data: legacyUser, error: legacyError } = await supabaseAdmin
+      .from('users')
+      .select('spotify_access_token, spotify_refresh_token, spotify_token_expires_at')
+      .eq('id', playerId)
+      .single();
+
+    if (legacyError || !legacyUser) {
+      throw new Error('Spotify user not found');
+    }
+
+    tokenOwner = {
+      access_token: legacyUser.spotify_access_token,
+      refresh_token: legacyUser.spotify_refresh_token,
+      expires_at: legacyUser.spotify_token_expires_at,
+    };
+  }
+
+  const { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAtValue } = tokenOwner;
+
+  if (!refreshToken) {
+    throw new Error('Spotify refresh token is missing');
+  }
+
+  const expiresAt = expiresAtValue ? new Date(expiresAtValue) : null;
+  const now = new Date();
+
+  if (accessToken && expiresAt && expiresAt > now) {
+    return accessToken;
+  }
+
+  const tokenData = await refreshSpotifyToken(refreshToken);
+  const newAccessToken = tokenData.access_token;
+  const newExpiresAt = new Date(Date.now() + (tokenData.expires_in ?? 0) * 1000).toISOString();
+
+  const { error: updateConnectionError } = await supabaseAdmin
+    .from('spotify_connections')
+    .update({
+      access_token: newAccessToken,
+      expires_at: newExpiresAt,
+      refresh_token: tokenData.refresh_token ?? refreshToken,
+    })
+    .eq('user_id', playerId);
+
+  if (updateConnectionError && updateConnectionError.code !== '42P01' && updateConnectionError.code !== 'PGRST116') {
+    throw new Error(updateConnectionError.message);
+  }
+
+  // Keep legacy columns synchronized while older room routes still read them.
+  await supabaseAdmin
+    .from('users')
+    .update({
+      spotify_access_token: newAccessToken,
+      spotify_token_expires_at: newExpiresAt,
+      spotify_refresh_token: tokenData.refresh_token ?? refreshToken,
+    })
+    .eq('id', playerId);
+
+  return newAccessToken;
+}
+
+/*
+ * Legacy implementation retained here only as a reference during migration.
+ * New code must use spotify_connections above.
+ */
+async function getLegacySpotifyAccessTokenForUser(playerId: string) {
   const supabaseAdmin = getSupabaseAdmin();
   const { data: user, error } = await supabaseAdmin
     .from('users')
@@ -231,6 +311,50 @@ export async function getRandomTrackForUser(playerId: string, excludeTrackIds: s
     album_name: track.album?.name ?? 'Unbekanntes Album',
     cover_url: track.album.images[0].url,
   };
+}
+
+export type SpotifyTopPeriod = 'short_term' | 'medium_term' | 'long_term';
+
+export type ImportedSpotifyTrack = {
+  id: string;
+  uri: string;
+  name: string;
+  artist_names: string;
+  album_name: string;
+  cover_url: string | null;
+};
+
+export async function fetchUserTopTracks(
+  playerId: string,
+  period: SpotifyTopPeriod,
+  limit = 500,
+): Promise<ImportedSpotifyTrack[]> {
+  const accessToken = await getSpotifyAccessTokenForUser(playerId);
+  const tracks: ImportedSpotifyTrack[] = [];
+  const pageSize = 50;
+
+  for (let offset = 0; offset < limit; offset += pageSize) {
+    const response = await fetchWithRetry<any>(
+      `https://api.spotify.com/v1/me/top/tracks?time_range=${period}&limit=${pageSize}&offset=${offset}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+
+    const page = (response.items ?? [])
+      .filter((track: any) => track?.id && track?.uri && track?.name)
+      .map((track: any) => ({
+        id: track.id,
+        uri: track.uri,
+        name: track.name,
+        artist_names: track.artists?.map((artist: any) => artist.name).join(', ') ?? 'Unbekannt',
+        album_name: track.album?.name ?? 'Unbekanntes Album',
+        cover_url: track.album?.images?.[0]?.url ?? null,
+      }));
+
+    tracks.push(...page);
+    if (page.length < pageSize || tracks.length >= limit) break;
+  }
+
+  return tracks.slice(0, limit);
 }
 
 export async function spotifyPlayForUser(playerId: string, trackUri?: string, deviceId?: string) {

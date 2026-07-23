@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextResponse, NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '../../../../../lib/supabase-server';
-import { getRandomTrackForUser } from '../../../../../lib/spotify';
+import { getRandomStoredTrackForUser } from '../../../../../lib/music-library';
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
@@ -26,7 +26,7 @@ const { data: round, error: roundError } = await supabaseAdmin
 
   const { data: room, error: roomError } = await supabaseAdmin
     .from('rooms')
-    .select('host_id')
+    .select('host_id, settings')
     .eq('id', round.room_id)
     .single();
 
@@ -54,10 +54,17 @@ const { data: round, error: roundError } = await supabaseAdmin
   const totalPlayers = players.length;
   const currentVotes = await supabaseAdmin
     .from('votes')
-    .select('user_id')
+    .select('voter_id')
     .eq('round_pick_id', round.current_pick_id);
 
-  if (!force && currentVotes.data && currentVotes.data.length < totalPlayers) {
+  const validPlayerIds = new Set(players.map((player: any) => player.user_id));
+  const uniqueVoters = new Set(
+    (currentVotes.data ?? [])
+      .map((vote: any) => vote.voter_id)
+      .filter((voterId: string | null) => voterId && validPlayerIds.has(voterId)),
+  );
+
+  if (!force && uniqueVoters.size < totalPlayers) {
     return NextResponse.json({ error: 'Wait for all votes before continuing' }, { status: 400 });
   }
 
@@ -81,6 +88,8 @@ const { data: round, error: roundError } = await supabaseAdmin
       return NextResponse.json({ error: 'Failed to finish round' }, { status: 500 });
     }
 
+    await supabaseAdmin.from('rooms').update({ current_state: 'scoreboard' }).eq('id', round.room_id);
+
     return NextResponse.json({ status: 'finished' });
   }
 
@@ -91,7 +100,17 @@ const nextPlayerId = playerOrder[nextIndex];
   
   let track;
   try {
-    track = await getRandomTrackForUser(nextPlayerId, excludeTrackIds);
+    const settings = room.settings ?? {};
+    const libraryAmount = [50, 100, 250, 500].includes(Number(settings.library_amount)) ? Number(settings.library_amount) : 100;
+    const libraryPeriod = ['short_term', 'medium_term', 'long_term'].includes(settings.library_period)
+      ? settings.library_period
+      : 'long_term';
+    track = await getRandomStoredTrackForUser(
+      nextPlayerId,
+      libraryAmount,
+      libraryPeriod as 'short_term' | 'medium_term' | 'long_term',
+      excludeTrackIds,
+    );
   } catch (trackError) {
     return NextResponse.json({ 
       error: trackError instanceof Error 
@@ -129,16 +148,22 @@ const nextPlayerId = playerOrder[nextIndex];
     return NextResponse.json({ error: 'Failed to create next round pick' }, { status: 500 });
   }
 
-const { error: updateError } = await supabaseAdmin
+  const { data: updatedRound, error: updateError } = await supabaseAdmin
     .from('rounds')
     .update({ 
       current_pick_id: pickId, 
       current_turn_index: nextIndex,
       played_track_ids: [...(round.played_track_ids ?? []), track.id]
     })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('current_pick_id', round.current_pick_id)
+    .eq('current_turn_index', round.current_turn_index)
+    .select('id')
+    .maybeSingle();
 
-  if (updateError) {
+  if (updateError || !updatedRound) {
+    await supabaseAdmin.from('round_picks').delete().eq('id', pickId);
+    if (!updateError) return NextResponse.json({ error: 'Round changed; please refresh' }, { status: 409 });
     return NextResponse.json({ error: 'Failed to advance round' }, { status: 500 });
   }
 

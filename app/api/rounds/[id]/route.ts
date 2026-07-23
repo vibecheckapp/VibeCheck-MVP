@@ -93,7 +93,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   if (round.current_pick_id) {
     const { data: pickData, error: pickError } = await supabaseAdmin
       .from('round_picks')
-      .select('id, user_id, track_name, artist_names, album_name, cover_url, uri, played')
+      .select('id, user_id, track_name, artist_names, album_name, cover_url, uri, played, sort_order')
       .eq('id', round.current_pick_id)
       .single();
 
@@ -191,23 +191,9 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       usersById[user.id] = user.display_name;
     });
 
-    // Deduplicate: exactly one scoreboard row per round player.
-    // Prefer pick with votes; fallback to played pick; fallback to first valid pick.
-    const pickByUser: Record<string, any> = {};
-    for (const userId of playerOrder) {
-      const userPicks = validPicks.filter((pick: any) => pick.user_id === userId);
-      if (userPicks.length === 0) continue;
-
-      let selected = userPicks.find((pick: any) => (votesByPick[pick.id]?.length ?? 0) > 0);
-      if (!selected) selected = userPicks.find((pick: any) => pick.played);
-      if (!selected) selected = userPicks[0];
-      pickByUser[userId] = selected;
-    }
-
-    scoreboard = playerOrder
-      .map((userId: string) => {
-        const pick = pickByUser[userId];
-        if (!pick) return null;
+    scoreboard = validPicks
+      .sort((a: any, b: any) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0))
+      .map((pick: any) => {
         const votes = votesByPick[pick.id] ?? [];
         return {
           id: pick.id,
@@ -221,8 +207,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
           vote_count: votes.length,
           score_average: votes.length > 0 ? votes.reduce((sum: number, vote: any) => sum + (vote.score ?? 0), 0) / votes.length : 0,
         };
-      })
-      .filter(Boolean) as any[];
+      }) as any[];
   }
 
   return NextResponse.json({
@@ -235,7 +220,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
       current_turn_index: round.current_turn_index ?? 0,
       current_pick: currentPick,
       scoreboard,
-      votes_needed: playerOrder.length,
+      votes_needed: players.length,
       votes_cast: currentPick?.vote_count ?? 0,
       user_vote: userVote,
     },

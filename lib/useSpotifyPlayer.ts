@@ -169,16 +169,18 @@ if (res.status === 404) {
       return;
     }
 
-    // Try to get device with refresh
-    let deviceId = await refreshDevicesAndGetId();
+    // Try to get current devices and prefer active device
+    let devices = await fetchDevices();
+    let selectedDevice = devices.find((d: any) => d.is_active) ?? devices[0] ?? null;
     
     // If no device found, try refreshing device list a few times (in case Spotify just opened)
-    if (!deviceId) {
+    if (!selectedDevice) {
       console.log('[Spotify] No device found, retrying device detection...');
       for (let i = 0; i < 3; i++) {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        deviceId = await refreshDevicesAndGetId();
-        if (deviceId) {
+        devices = await fetchDevices();
+        selectedDevice = devices.find((d: any) => d.is_active) ?? devices[0] ?? null;
+        if (selectedDevice) {
           console.log('[Spotify] Device found after retry', i + 1);
           break;
         }
@@ -186,28 +188,41 @@ if (res.status === 404) {
     }
     
     // If still no device, show clear error
-    if (!deviceId) {
+    if (!selectedDevice) {
       const errorMsg = 'Spotify ist nicht aktiv. Bitte öffne die Spotify App und klicke erneut auf Play.';
       setError(errorMsg);
       throw new Error(errorMsg);
     }
+
+    const deviceId = selectedDevice.id as string;
     
     console.log('[Spotify] Using device:', deviceId, 'to play URI:', uri);
     
     try {
-      // Transfer to device and play with the specific URI
-      const transferRes = await fetch('https://api.spotify.com/v1/me/player', {
+      // Only transfer when the selected target device is not already active.
+      if (!selectedDevice.is_active) {
+        await fetch('https://api.spotify.com/v1/me/player', {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_ids: [deviceId], play: false })
+        });
+        // Keep this minimal to reduce audible switch delay.
+        await new Promise(resolve => setTimeout(resolve, 120));
+      }
+
+      const playUrl = new URL('https://api.spotify.com/v1/me/player/play');
+      playUrl.searchParams.set('device_id', deviceId);
+      const body = uri ? { uris: [uri] } : {};
+      const playRes = await fetch(playUrl.toString(), {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_ids: [deviceId], play: true })
+        body: JSON.stringify(body),
       });
-      
-      // Small delay to ensure transfer completes
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Then play the specific track
-      const body = uri ? { uris: [uri] } : {};
-      await apiCall('PUT', '/me/player/play', body);
+
+      if (!playRes.ok) {
+        const text = await playRes.text();
+        throw new Error(text || `Spotify API ${playRes.status}`);
+      }
     } catch (e) {
       console.warn('[Spotify] Play warning:', e);
     }
@@ -216,7 +231,7 @@ if (res.status === 404) {
       setCurrentTrackUri(uri);
       setIsSdkPlaying(true);
     }
-  }, [apiCall, isHost, refreshDevicesAndGetId, fetchToken]);
+  }, [isHost, fetchToken, fetchDevices]);
 
 // Pause via REST API - use dedicated pause endpoint
   const pause = useCallback(async () => {

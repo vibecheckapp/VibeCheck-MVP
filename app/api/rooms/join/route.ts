@@ -2,18 +2,42 @@ import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-server';
 
+const REQUIRED_LIBRARY_AMOUNTS = [50, 100, 250, 500] as const;
+const REQUIRED_LIBRARY_PERIODS = ['short_term', 'medium_term', 'long_term'] as const;
+
+async function hasCompleteMusicLibraries(supabaseAdmin: ReturnType<typeof getSupabaseAdmin>, userId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('music_libraries')
+    .select('amount, period')
+    .eq('user_id', userId);
+
+  if (error) {
+    throw error;
+  }
+
+  const keys = new Set((data ?? []).map((entry: any) => `${entry.period}:${entry.amount}`));
+  for (const period of REQUIRED_LIBRARY_PERIODS) {
+    for (const amount of REQUIRED_LIBRARY_AMOUNTS) {
+      if (!keys.has(`${period}:${amount}`)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const roomCode = String(body.roomCode ?? '').trim().toUpperCase();
-  const name = String(body.name ?? '').trim();
-  const clientJoinTokenRaw = body.clientJoinToken;
-  const clientJoinToken =
-    typeof clientJoinTokenRaw === 'string' && /^[0-9a-fA-F-]{36}$/.test(clientJoinTokenRaw)
-      ? clientJoinTokenRaw
-      : null;
+  const profileId = String(body.userId ?? body.profileId ?? '').trim();
 
-  if (!roomCode || !name) {
-    return NextResponse.json({ error: 'Room code and name are required' }, { status: 400 });
+  if (!roomCode) {
+    return NextResponse.json({ error: 'Room code is required' }, { status: 400 });
+  }
+
+  if (!profileId) {
+    return NextResponse.json({ error: 'Please create or log in to a profile first.' }, { status: 401 });
   }
 
   const supabaseAdmin = getSupabaseAdmin();
@@ -27,46 +51,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: roomError?.message ?? 'Room not found' }, { status: 404 });
   }
 
-  let userId = clientJoinToken ?? randomUUID();
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .eq('id', profileId)
+    .maybeSingle();
 
-  if (clientJoinToken) {
-    const { data: existingUser, error: existingUserError } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .eq('id', clientJoinToken)
-      .maybeSingle();
+  if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
+  if (!profile) return NextResponse.json({ error: 'Profile not found. Please log in again.' }, { status: 401 });
 
-    if (existingUserError) {
-      return NextResponse.json({ error: existingUserError.message ?? 'Failed to read user' }, { status: 500 });
-    }
-
-    if (!existingUser) {
-      const { data: insertedUser, error: insertUserError } = await supabaseAdmin
-        .from('users')
-        .insert({ id: clientJoinToken, display_name: name })
-        .select('id')
-        .single();
-
-      if (insertUserError || !insertedUser) {
-        return NextResponse.json({ error: insertUserError?.message ?? 'Failed to create user' }, { status: 500 });
-      }
-      userId = insertedUser.id;
-    } else {
-      userId = existingUser.id;
-      await supabaseAdmin.from('users').update({ display_name: name }).eq('id', userId);
-    }
-  } else {
-    const { data: insertedUser, error: insertUserError } = await supabaseAdmin
-      .from('users')
-      .insert({ id: userId, display_name: name })
-      .select('id')
-      .single();
-
-    if (insertUserError || !insertedUser) {
-      return NextResponse.json({ error: insertUserError?.message ?? 'Failed to create user' }, { status: 500 });
-    }
-    userId = insertedUser.id;
+  let hasLibraries = false;
+  try {
+    hasLibraries = await hasCompleteMusicLibraries(supabaseAdmin, profileId);
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
+
+  if (!hasLibraries) {
+    return NextResponse.json({ error: 'Please update your music profile in Profile before joining a room.' }, { status: 400 });
+  }
+
+  const userId = profileId || randomUUID();
 
   const joinedAt = new Date().toISOString();
   const { data: roomPlayer, error: roomPlayerError } = await supabaseAdmin
@@ -76,7 +81,6 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (roomPlayerError) {
-    // Unique conflict (room_id, user_id) => already joined, treat as success
     if ((roomPlayerError as any).code === '23505') {
       const { data: existingRoomPlayer, error: existingRoomPlayerError } = await supabaseAdmin
         .from('room_players')

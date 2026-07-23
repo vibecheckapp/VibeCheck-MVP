@@ -51,6 +51,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ro
     anonymous_voting: settings?.anonymous_voting ?? true,
     auto_play_winner_song: settings?.auto_play_winner_song ?? true,
     auto_play_winner_duration: settings?.auto_play_winner_duration ?? 30,
+    songs_per_player: Number.isInteger(Number(settings?.songs_per_player)) && Number(settings.songs_per_player) >= 1 && Number(settings.songs_per_player) <= 50 ? Number(settings.songs_per_player) : 1,
+    library_amount: [50, 100, 250, 500].includes(Number(settings?.library_amount)) ? Number(settings.library_amount) : 100,
+    library_period: ['short_term', 'medium_term', 'long_term'].includes(settings?.library_period) ? settings.library_period : 'long_term',
   };
 
   // Try update with state_version first; fallback for DBs without this column

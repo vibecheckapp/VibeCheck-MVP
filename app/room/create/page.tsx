@@ -1,12 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function CreateRoomPage() {
   const router = useRouter();
   const [name, setName] = useState('');
+    const [profileId, setProfileId] = useState('');
+    const [profileName, setProfileName] = useState('');
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  useEffect(() => {
+    const id = window.localStorage.getItem('vibecheck-user-id');
+    if (!id) return;
+    setProfileId(id);
+    fetch(`/api/profile?userId=${encodeURIComponent(id)}`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => data?.user && setProfileName(data.user.display_name))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    setProfileUserId(window.localStorage.getItem('vibecheck-user-id'));
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -15,7 +31,7 @@ export default function CreateRoomPage() {
     const response = await fetch('/api/rooms/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name: profileId ? undefined : name, userId: profileId || undefined }),
     });
 
     const data = await response.json();
@@ -32,16 +48,17 @@ export default function CreateRoomPage() {
     <main className="page-shell">
       <section className="hero">
         <h1>Create Room</h1>
-        <p>Enter your name and start a game lobby.</p>
+        <p>{profileUserId ? 'Your profile will be used for this room.' : 'Enter your name and start a game lobby.'}</p>
+          <p>{profileId ? `Playing as ${profileName || 'your profile'}.` : 'Enter your name and start a game lobby.'}</p>
         <form onSubmit={handleSubmit} className="entry-form">
-          <input
+          {!profileUserId ? <input
             name="name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Your name"
             aria-label="Your name"
             required
-          />
+          /> : null}
           <button type="submit" className="button">
             Create Room
           </button>

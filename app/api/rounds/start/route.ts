@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-server';
-import { getRandomTrackForUser } from '../../../../lib/spotify';
+import { getRandomStoredTrackForUser } from '../../../../lib/music-library';
 
 function shuffleArray<T>(items: T[]) {
   const array = [...items];
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     const { data: room, error: roomError } = await supabaseAdmin
       .from('rooms')
-      .select('id, host_id, active_round_id')
+      .select('id, host_id, active_round_id, settings')
       .eq('id', roomId)
       .single();
 
@@ -66,12 +66,25 @@ if (roomError || !room) {
     return NextResponse.json({ error: 'Failed to load room players' }, { status: 500 });
   }
 
-  const notConnected = (roomPlayers ?? []).filter((entry: any) => !entry.users?.spotify_refresh_token);
-  if (notConnected.length > 0) {
-    return NextResponse.json({ error: 'Not all players are connected to Spotify' }, { status: 400 });
+  const settings = room.settings ?? {};
+  const songsPerPlayer = Number.isInteger(Number(settings.songs_per_player)) && Number(settings.songs_per_player) >= 1 && Number(settings.songs_per_player) <= 50 ? Number(settings.songs_per_player) : 1;
+  const libraryAmount = [50, 100, 250, 500].includes(Number(settings.library_amount)) ? Number(settings.library_amount) : 100;
+  const libraryPeriod = ['short_term', 'medium_term', 'long_term'].includes(settings.library_period) ? settings.library_period : 'long_term';
+  const playerIds = (roomPlayers ?? []).map((entry: any) => entry.user_id);
+  const { data: libraries } = await supabaseAdmin
+    .from('music_libraries')
+    .select('user_id')
+    .in('user_id', playerIds)
+    .eq('amount', libraryAmount)
+    .eq('period', libraryPeriod);
+  const readyUsers = new Set((libraries ?? []).map((library: any) => library.user_id));
+  const missingLibraries = playerIds.filter((id: string) => !readyUsers.has(id));
+  if (missingLibraries.length > 0) {
+    return NextResponse.json({ error: 'Every player must update their Spotify music profile first.' }, { status: 400 });
   }
 
-  const playerOrder = shuffleArray((roomPlayers ?? []).map((entry: any) => entry.user_id));
+  const shuffledPlayers = shuffleArray(playerIds);
+  const playerOrder = shuffledPlayers.flatMap((id: string) => Array.from({ length: songsPerPlayer }, () => id));
   if (!playerOrder.length) {
     return NextResponse.json({ error: 'No players found to start the round' }, { status: 400 });
   }
@@ -82,7 +95,7 @@ const roundId = randomUUID();
   // Fetch track with no exclusions (first round - no played tracks yet)
   let track;
   try {
-    track = await getRandomTrackForUser(firstPlayerId, []);
+    track = await getRandomStoredTrackForUser(firstPlayerId, libraryAmount, libraryPeriod as 'short_term' | 'medium_term' | 'long_term');
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message || 'Failed to load Spotify track' }, { status: 500 });
   }
@@ -146,25 +159,34 @@ const roundId = randomUUID();
     .update({ current_pick_id: pickId })
     .eq('id', roundId);
 
+  if (roundUpdateError) {
+    await supabaseAdmin.from('round_picks').delete().eq('id', pickId);
+    await supabaseAdmin.from('rounds').delete().eq('id', roundId);
+    return NextResponse.json({ error: 'Failed to set current round pick' }, { status: 500 });
+  }
+
 // Debug: Log the state before and after update
     console.log('[StartRound] About to set room active_round_id:', roomId, '->', roundId);
     
-  const { error: roomUpdateError } = await supabaseAdmin
+    const { data: claimedRoom, error: roomUpdateError } = await supabaseAdmin
       .from('rooms')
-      .update({ active_round_id: roundId })
-      .eq('id', roomId);
+      .update({ active_round_id: roundId, current_state: 'playing' })
+      .eq('id', roomId)
+      .is('active_round_id', null)
+      .select('id')
+      .maybeSingle();
 
   console.log('[StartRound] Room update error:', roomUpdateError);
 
-  if (roomUpdateError) {
+  if (roomUpdateError || !claimedRoom) {
     await supabaseAdmin.from('round_picks').delete().eq('id', pickId);
     await supabaseAdmin.from('rounds').delete().eq('id', roundId);
     return NextResponse.json(
       {
-        error: 'Failed to update room state',
+        error: roomUpdateError ? 'Failed to update room state' : 'A round was started by another request',
         details: roomUpdateError?.message ?? 'Unknown database error',
       },
-      { status: 500 },
+      { status: roomUpdateError ? 500 : 409 },
     );
   }
 

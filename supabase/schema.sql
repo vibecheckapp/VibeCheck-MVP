@@ -43,11 +43,28 @@ CREATE TABLE IF NOT EXISTS players (
 CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY,
   display_name text NOT NULL,
+  username text NOT NULL DEFAULT ('player-' || replace(left(gen_random_uuid()::text, 8), '-', '')),
+  magic_code text NOT NULL DEFAULT lpad((floor(random() * 10000))::integer::text, 4, '0'),
+  last_music_import_at timestamptz,
   spotify_refresh_token text,
   spotify_access_token text,
   spotify_token_expires_at timestamptz,
   spotify_user_id text,
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS spotify_connections (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  spotify_user_id text NOT NULL,
+  access_token text,
+  refresh_token text NOT NULL,
+  expires_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id),
+  UNIQUE (spotify_user_id)
 );
 
 -- room_players: mapping table used widely in existing APIs
@@ -100,7 +117,8 @@ CREATE TABLE IF NOT EXISTS rounds (
   votes_cast integer NOT NULL DEFAULT 0,
   votes_needed integer NOT NULL DEFAULT 0,
   started_at timestamptz,
-  ended_at timestamptz
+  ended_at timestamptz,
+  paused_at timestamptz
 );
 
 -- round_picks
@@ -122,13 +140,16 @@ CREATE TABLE IF NOT EXISTS round_picks (
 -- votes
 CREATE TABLE IF NOT EXISTS votes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  room_id uuid NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+  room_id uuid REFERENCES rooms(id) ON DELETE CASCADE,
   -- support both legacy round number and round_id UUID
   round integer,
   round_id uuid REFERENCES rounds(id) ON DELETE CASCADE,
-  player_id uuid NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-  song_id text NOT NULL,
-  rating integer NOT NULL,
+  player_id uuid REFERENCES players(id) ON DELETE CASCADE,
+  song_id text,
+  rating integer,
+  round_pick_id uuid REFERENCES round_picks(id) ON DELETE CASCADE,
+  voter_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  score integer CHECK (score IS NULL OR score BETWEEN 1 AND 10),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -164,17 +185,109 @@ CREATE TABLE IF NOT EXISTS suggestions (
 -- optional songs master table
 CREATE TABLE IF NOT EXISTS songs (
   id text PRIMARY KEY,
+  spotify_song_id text,
+  title text,
+  artist text,
+  album text,
+  image_url text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Persistent user-owned Spotify libraries.
+CREATE TABLE IF NOT EXISTS music_libraries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  amount integer NOT NULL CHECK (amount IN (50, 100, 250, 500)),
+  period text NOT NULL CHECK (period IN ('short_term', 'medium_term', 'long_term')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, amount, period)
+);
+
+CREATE TABLE IF NOT EXISTS user_library_songs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  library_id uuid NOT NULL REFERENCES music_libraries(id) ON DELETE CASCADE,
+  song_id text NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+  rank integer NOT NULL CHECK (rank > 0),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (library_id, song_id),
+  UNIQUE (library_id, rank)
 );
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_players_room ON players(room_id);
 CREATE INDEX IF NOT EXISTS idx_room_events_room ON room_events(room_id);
 CREATE INDEX IF NOT EXISTS idx_votes_room_round ON votes(room_id, round);
+CREATE INDEX IF NOT EXISTS votes_round_pick_idx ON votes(round_pick_id);
+CREATE INDEX IF NOT EXISTS votes_voter_idx ON votes(voter_id);
+CREATE UNIQUE INDEX IF NOT EXISTS votes_round_pick_voter_unique ON votes(round_pick_id, voter_id)
+  WHERE round_pick_id IS NOT NULL AND voter_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_song_history_room ON song_history(room_id);
 CREATE INDEX IF NOT EXISTS idx_players_last_seen ON players(last_seen);
 CREATE INDEX IF NOT EXISTS idx_rooms_state_version ON rooms(state_version);
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_unique ON users (lower(username));
+CREATE INDEX IF NOT EXISTS users_username_lookup_idx ON users(username);
+CREATE INDEX IF NOT EXISTS spotify_connections_user_idx ON spotify_connections(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS songs_spotify_song_id_unique ON songs(spotify_song_id) WHERE spotify_song_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS music_libraries_user_idx ON music_libraries(user_id);
+CREATE INDEX IF NOT EXISTS user_library_songs_library_rank_idx ON user_library_songs(library_id, rank);
+CREATE INDEX IF NOT EXISTS user_library_songs_song_idx ON user_library_songs(song_id);
+
+-- Keep profile timestamps current.
+CREATE OR REPLACE FUNCTION public.set_users_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS users_updated_at ON public.users;
+CREATE TRIGGER users_updated_at
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_users_updated_at();
+
+CREATE OR REPLACE FUNCTION public.set_music_libraries_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS music_libraries_updated_at ON public.music_libraries;
+CREATE TRIGGER music_libraries_updated_at
+  BEFORE UPDATE ON public.music_libraries
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_music_libraries_updated_at();
+
+CREATE OR REPLACE FUNCTION public.set_spotify_connections_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS spotify_connections_updated_at ON public.spotify_connections;
+CREATE TRIGGER spotify_connections_updated_at
+  BEFORE UPDATE ON public.spotify_connections
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_spotify_connections_updated_at();
+
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.songs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.music_libraries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_library_songs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.spotify_connections ENABLE ROW LEVEL SECURITY;
 
 -- RPC: emit_room_event (clients call to request an event emission)
 CREATE OR REPLACE FUNCTION public.emit_room_event(p_room uuid, p_type text, p_payload jsonb)

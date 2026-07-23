@@ -10,6 +10,9 @@ export default function HomePage() {
           <Link href="/room/enter" className="button">
             Play
           </Link>
+          <Link href="/profile" className="button btn-ghost">
+              Profile
+          </Link>
         </div>
       </section>
 

@@ -10,7 +10,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing code or state' }, { status: 400 });
   }
 
-  const playerId = Buffer.from(state, 'base64').toString('utf8');
+  let playerId = '';
+  let returnTo = '';
+  try {
+    const decodedState = Buffer.from(state, 'base64').toString('utf8');
+    const parsedState = JSON.parse(decodedState);
+    playerId = parsedState.playerId;
+    returnTo = typeof parsedState.returnTo === 'string' ? parsedState.returnTo : '';
+  } catch {
+    // Compatibility with OAuth links created by the previous MVP.
+    playerId = Buffer.from(state, 'base64').toString('utf8');
+  }
+
   if (!playerId) {
     return NextResponse.json({ error: 'Invalid state value' }, { status: 400 });
   }
@@ -65,12 +76,37 @@ export async function GET(request: Request) {
   const spotifyUserId = spotifyUser.id ?? null;
 
   const supabaseAdmin = getSupabaseAdmin();
+  const expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 0) * 1000).toISOString();
+
+  const { error: cleanupError } = await supabaseAdmin
+    .from('spotify_connections')
+    .delete()
+    .or(`user_id.eq.${playerId},spotify_user_id.eq.${spotifyUserId}`);
+
+  if (cleanupError) {
+    return NextResponse.json({ error: cleanupError.message }, { status: 500 });
+  }
+
+  const { error: connectionError } = await supabaseAdmin
+    .from('spotify_connections')
+    .insert({
+      user_id: playerId,
+      spotify_user_id: spotifyUserId,
+      access_token: tokenData.access_token,
+      refresh_token: refreshToken,
+      expires_at: expiresAt,
+    });
+
+  if (connectionError && connectionError.code !== '42P01') {
+    return NextResponse.json({ error: connectionError.message }, { status: 500 });
+  }
+
   const { data: user, error: userError } = await supabaseAdmin
     .from('users')
     .update({
       spotify_access_token: tokenData.access_token,
       spotify_refresh_token: refreshToken,
-      spotify_token_expires_at: new Date(Date.now() + (tokenData.expires_in ?? 0) * 1000).toISOString(),
+      spotify_token_expires_at: expiresAt,
       spotify_user_id: spotifyUserId,
     })
     .eq('id', playerId)
@@ -85,10 +121,15 @@ export async function GET(request: Request) {
     .from('room_players')
     .select('room_id')
     .eq('user_id', playerId)
-    .single();
+    .maybeSingle();
 
-  if (roomError || !room) {
+  if (roomError) {
     return NextResponse.json({ error: roomError?.message ?? 'Room not found' }, { status: 500 });
+  }
+
+  if (!room) {
+    const safeReturnTo = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/profile';
+    return NextResponse.redirect(`${origin}${safeReturnTo}?spotify=connected`);
   }
 
   const { data: roomDetails, error: roomDetailsError } = await supabaseAdmin

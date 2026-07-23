@@ -2,6 +2,31 @@ import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../../lib/supabase-server';
 
+const REQUIRED_LIBRARY_AMOUNTS = [50, 100, 250, 500] as const;
+const REQUIRED_LIBRARY_PERIODS = ['short_term', 'medium_term', 'long_term'] as const;
+
+async function hasCompleteMusicLibraries(supabaseAdmin: ReturnType<typeof getSupabaseAdmin>, userId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('music_libraries')
+    .select('amount, period')
+    .eq('user_id', userId);
+
+  if (error) {
+    throw error;
+  }
+
+  const keys = new Set((data ?? []).map((entry: any) => `${entry.period}:${entry.amount}`));
+  for (const period of REQUIRED_LIBRARY_PERIODS) {
+    for (const amount of REQUIRED_LIBRARY_AMOUNTS) {
+      if (!keys.has(`${period}:${amount}`)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 const generateRoomCode = () => {
   const letters = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   return Array.from({ length: 6 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
@@ -18,13 +43,8 @@ async function createUniqueRoomCode() {
       .eq('room_code', roomCode)
       .maybeSingle();
 
-    if (error) {
-      throw error;
-    }
-
-    if (!data) {
-      return roomCode;
-    }
+    if (error) throw error;
+    if (!data) return roomCode;
   }
 
   throw new Error('Unable to generate a unique room code');
@@ -32,19 +52,35 @@ async function createUniqueRoomCode() {
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const name = String(body.name ?? '').trim();
+  const profileId = String(body.userId ?? body.profileId ?? '').trim();
 
-  if (!name) {
-    return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+  if (!profileId) {
+    return NextResponse.json({ error: 'Please create or log in to a profile first.' }, { status: 401 });
   }
 
-  let roomCode = await createUniqueRoomCode();
-  // Normalize roomCode to uppercase for consistency
-  roomCode = roomCode.toUpperCase();
-
   const supabaseAdmin = getSupabaseAdmin();
-  console.log('[CreateRoom] Creating room with code:', roomCode);
-  
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .eq('id', profileId)
+    .maybeSingle();
+
+  if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
+  if (!profile) return NextResponse.json({ error: 'Profile not found. Please log in again.' }, { status: 401 });
+
+  let hasLibraries = false;
+  try {
+    hasLibraries = await hasCompleteMusicLibraries(supabaseAdmin, profileId);
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
+
+  if (!hasLibraries) {
+    return NextResponse.json({ error: 'Please update your music profile in Profile before creating a room.' }, { status: 400 });
+  }
+
+  const roomCode = (await createUniqueRoomCode()).toUpperCase();
   const { data: room, error: roomError } = await supabaseAdmin
     .from('rooms')
     .insert({ room_code: roomCode })
@@ -52,26 +88,14 @@ export async function POST(request: Request) {
     .single();
 
   if (roomError || !room) {
-    console.error('[CreateRoom] Failed to create room:', roomError);
     return NextResponse.json({ error: roomError?.message ?? 'Failed to create room' }, { status: 500 });
   }
-  
-  console.log('[CreateRoom] Room created successfully:', room);
 
-  const userId = randomUUID();
-  const { data: user, error: userError } = await supabaseAdmin
-    .from('users')
-    .insert({ id: userId, display_name: name })
-    .select('id')
-    .single();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: userError?.message ?? 'Failed to create user' }, { status: 500 });
-  }
+  const userId = profileId || randomUUID();
 
   const { data: roomPlayer, error: roomPlayerError } = await supabaseAdmin
     .from('room_players')
-    .insert({ room_id: room.id, user_id: user.id, joined_at: new Date().toISOString() })
+    .insert({ room_id: room.id, user_id: userId, joined_at: new Date().toISOString() })
     .select('id')
     .single();
 
@@ -81,12 +105,12 @@ export async function POST(request: Request) {
 
   const { error: hostError } = await supabaseAdmin
     .from('rooms')
-    .update({ host_id: user.id })
+    .update({ host_id: userId })
     .eq('id', room.id);
 
   if (hostError) {
     return NextResponse.json({ error: hostError.message ?? 'Failed to assign host' }, { status: 500 });
   }
 
-  return NextResponse.json({ roomCode, playerId: user.id });
+  return NextResponse.json({ roomCode, playerId: userId });
 }

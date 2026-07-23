@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase-client';
 import startRoomSync from '../lib/roomSync';
@@ -15,33 +15,8 @@ interface Player {
   id: string;
   name: string;
   spotify_connected?: boolean;
+  library_ready?: boolean;
   last_seen?: string | null;
-}
-
-interface RoundPick {
-  id: string;
-  user_id: string;
-  user_name: string;
-  track_name: string;
-  artist_names: string;
-  album_name: string;
-  cover_url: string;
-  uri: string;
-  played: boolean;
-  score_total: number;
-  vote_count: number;
-}
-
-interface ScoreboardRow {
-  id: string;
-  user_id: string;
-  user_name: string;
-  track_name: string;
-  artist_names: string;
-  cover_url: string;
-  score_total: number;
-  vote_count: number;
-  uri?: string;
 }
 
 interface RoomSettings {
@@ -50,7 +25,26 @@ interface RoomSettings {
   anonymous_voting: boolean;
   auto_play_winner_song: boolean;
   auto_play_winner_duration: number;
+  songs_per_player: number;
+  library_amount: 50 | 100 | 250 | 500;
+  library_period: 'short_term' | 'medium_term' | 'long_term';
 }
+
+interface RoundPick {
+  id: string;
+  user_id: string;
+  user_name?: string;
+  track_name: string;
+  artist_names: string;
+  album_name?: string;
+  cover_url?: string;
+  uri: string;
+  score_total: number;
+  vote_count: number;
+}
+
+interface ScoreboardRow extends RoundPick {}
+type ScoredSong = ScoreboardRow & { avgScore: number };
 
 interface RoundState {
   id: string;
@@ -118,6 +112,9 @@ const mapRoomSettings = (settings?: Partial<RoomSettings> | null): RoomSettings 
   anonymous_voting: settings?.anonymous_voting ?? true,
   auto_play_winner_song: settings?.auto_play_winner_song ?? true,
   auto_play_winner_duration: settings?.auto_play_winner_duration ?? 30,
+  songs_per_player: settings?.songs_per_player ?? 1,
+  library_amount: settings?.library_amount ?? 100,
+  library_period: settings?.library_period ?? 'long_term',
 });
 
 const [roomSettings, setRoomSettings] = useState<RoomSettings>(mapRoomSettings());
@@ -133,19 +130,16 @@ const [roomSettings, setRoomSettings] = useState<RoomSettings>(mapRoomSettings()
   const [showPresetScenarios, setShowPresetScenarios] = useState(false);
   const [showCustomScenarioInput, setShowCustomScenarioInput] = useState(false);
   const [showCommunitySuggestions, setShowCommunitySuggestions] = useState(false);
+  const [showMusicSelectionModal, setShowMusicSelectionModal] = useState(false);
+  const [showScenarioMenuModal, setShowScenarioMenuModal] = useState(false);
+  const [selectedScoreboardPlayerId, setSelectedScoreboardPlayerId] = useState<string | null>(null);
+  const [songsPerPlayerDraft, setSongsPerPlayerDraft] = useState(1);
+  const [isDraggingSongsWheel, setIsDraggingSongsWheel] = useState(false);
 // Player has last_seen
 const [playerLastSeen, setPlayerLastSeen] = useState<Record<string, string>>({});
 // Best song playback
   const [bestSongUri, setBestSongUri] = useState<string | null>(null);
   const [autoPlayedBest, setAutoPlayedBest] = useState(false);
-// FIX: Reset playback state when scoreboard is shown (prevents stale state conflicts)
-  useEffect(() => {
-    if (roundState?.status === 'finished') {
-      // Reset playback state when entering scoreboard
-      setPlaybackActive(false);
-      setCurrentPlayingUri(null);
-    }
-  }, [roundState?.status]);
   // Unterdrückt das Lookup-Round-Sync kurzzeitig — verhindert Race zwischen
   // lokaler Round-Neuanlage (Start Game) und stale Server-active_round_id.
   const [suppressRoundSync, setSuppressRoundSync] = useState(false);
@@ -974,6 +968,24 @@ const handleUpdateSettings = async (newSettings: RoomSettings) => {
     }
 };
 
+  const commitSongsPerPlayer = () => {
+    if (!isHost || !showMusicSelectionModal) return;
+    const nextAmount = Math.min(10, Math.max(1, songsPerPlayerDraft));
+    if (nextAmount === roomSettings.songs_per_player) return;
+    void handleUpdateSettings({ ...roomSettings, songs_per_player: nextAmount });
+  };
+
+  const closeMusicSelectionModal = () => {
+    commitSongsPerPlayer();
+    setShowMusicSelectionModal(false);
+    setIsDraggingSongsWheel(false);
+  };
+
+  useEffect(() => {
+    if (!showMusicSelectionModal || isDraggingSongsWheel) return;
+    setSongsPerPlayerDraft(roomSettings.songs_per_player);
+  }, [showMusicSelectionModal, roomSettings.songs_per_player, isDraggingSongsWheel]);
+
 const handleSubmitCustomScenario = async () => {
     if (!room?.id || !currentPlayer?.id || !customScenarioInput.trim()) return;
     setCustomScenarioSent(true);
@@ -995,16 +1007,107 @@ const handleSubmitCustomScenario = async () => {
   };
 
   const allSpotifyConnected = players.length > 0 && players.every((player) => player.spotify_connected);
-  const canStartRound = isHost && allSpotifyConnected && !!scenario.trim() && !room?.active_round_id;
+  const canStartRound = isHost && !!scenario.trim() && !room?.active_round_id;
   const isPlayingRound = !!room?.active_round_id && !showLobbyAfterRound;
   const currentPick = roundState?.current_pick;
   const canVote = !!currentPlayer && roundState?.status === 'playing' && !!currentPick;
   const hasVoted = roundState?.user_vote != null;
 const allVotesReady = roundState ? roundState.votes_cast >= roundState.votes_needed : false;
-// Show player name only when anonymous voting is disabled OR when all votes are cast.
-// This is server-authoritative via votes_cast/votes_needed from round state.
-const showPlayerName = !roomSettings.anonymous_voting || allVotesReady;
+  // When anonymous voting is active, player names stay hidden for the entire round.
+  const showPlayerName = !roomSettings.anonymous_voting;
 const effectivePaused = !!roundState && roundState.status === 'playing' && (isPaused || !!roundState.paused_at);
+  const activeTrackUri = spotify?.currentTrackUri ?? currentPlayingUri;
+  const isActiveTrackPlaying = Boolean(spotify?.isSdkPlaying || playbackActive);
+
+  const scoredSongs = useMemo<ScoredSong[]>(
+    () =>
+      (roundState?.scoreboard ?? [])
+        .filter((row) => row.user_id && row.track_name && row.uri)
+        .map((row) => ({
+          ...row,
+          avgScore: row.vote_count > 0 ? row.score_total / row.vote_count : 0,
+        })),
+    [roundState?.scoreboard],
+  );
+
+  const topSongOverall = useMemo(() => {
+    if (!scoredSongs.length) return null;
+    return [...scoredSongs].sort((a, b) => {
+      if (b.avgScore !== a.avgScore) return b.avgScore - a.avgScore;
+      return b.score_total - a.score_total;
+    })[0] ?? null;
+  }, [scoredSongs]);
+
+  const playerScoreboard = useMemo(() => {
+    const byPlayer = new Map<
+      string,
+      {
+        user_id: string;
+        user_name: string;
+        totalScore: number;
+        totalVotes: number;
+        songCount: number;
+        bestSong: ScoreboardRow | null;
+        bestSongAvg: number;
+        songs: ScoredSong[];
+      }
+    >();
+
+    for (const row of scoredSongs) {
+      const existing = byPlayer.get(row.user_id) ?? {
+        user_id: row.user_id,
+        user_name: row.user_name ?? 'Unbekannt',
+        totalScore: 0,
+        totalVotes: 0,
+        songCount: 0,
+        bestSong: null,
+        bestSongAvg: -1,
+        songs: [],
+      };
+
+      const rowAvg = row.vote_count > 0 ? row.score_total / row.vote_count : 0;
+      existing.totalScore += row.score_total;
+      existing.totalVotes += row.vote_count;
+      existing.songCount += 1;
+      existing.songs.push(row);
+
+      if (
+        !existing.bestSong ||
+        rowAvg > existing.bestSongAvg ||
+        (rowAvg === existing.bestSongAvg && row.score_total > (existing.bestSong?.score_total ?? 0))
+      ) {
+        existing.bestSong = row;
+        existing.bestSongAvg = rowAvg;
+      }
+
+      byPlayer.set(row.user_id, existing);
+    }
+
+    return Array.from(byPlayer.values())
+      .map((player) => ({
+        ...player,
+        avgScore: player.totalVotes > 0 ? player.totalScore / player.totalVotes : 0,
+        songs: [...player.songs].sort((a, b) => {
+          if (b.avgScore !== a.avgScore) return b.avgScore - a.avgScore;
+          return b.score_total - a.score_total;
+        }),
+      }))
+      .sort((a, b) => {
+        if (b.avgScore !== a.avgScore) return b.avgScore - a.avgScore;
+        return b.totalScore - a.totalScore;
+      });
+  }, [scoredSongs]);
+
+  const selectedScoreboardPlayer = useMemo(
+    () => playerScoreboard.find((player) => player.user_id === selectedScoreboardPlayerId) ?? null,
+    [playerScoreboard, selectedScoreboardPlayerId],
+  );
+
+  useEffect(() => {
+    if (roundState?.status !== 'finished') {
+      setSelectedScoreboardPlayerId(null);
+    }
+  }, [roundState?.status]);
   
   // Auto-advance timer: start countdown when all votes are ready and setting is enabled
   useEffect(() => {
@@ -1043,31 +1146,21 @@ const effectivePaused = !!roundState && roundState.status === 'playing' && (isPa
       return;
     }
 
-    const scoreboardRows = Array.from(
-      new Map(
-        (roundState.scoreboard ?? [])
-          .filter((row) => row.user_id && row.track_name && row.uri)
-          .map((row) => [row.user_id, row])
-      ).values()
-    ).slice(0, roundState.player_order.length);
-
-    // Winner = highest average score; tie-breaker by higher total score
-    const winnerSong = scoreboardRows
-      .sort((a, b) => {
-        const avgA = a.vote_count > 0 ? a.score_total / a.vote_count : 0;
-        const avgB = b.vote_count > 0 ? b.score_total / b.vote_count : 0;
-        if (avgB !== avgA) return avgB - avgA;
-        return b.score_total - a.score_total;
-      })[0];
-
-    if (!winnerSong?.uri) {
+    if (!topSongOverall?.uri) {
       return;
     }
 
-    const winnerUri = winnerSong.uri;
+    const winnerUri = topSongOverall.uri;
 
 // FIX: Play via REST API with guard to prevent conflicts
     const playWinner = async () => {
+      if (activeTrackUri === winnerUri && isActiveTrackPlaying) {
+        setWinnerSongPlayed(true);
+        setCurrentPlayingUri(winnerUri);
+        setPlaybackActive(true);
+        return;
+      }
+
       // FIX: Prevent multiple auto-play calls
       if (autoPlayInProgressRef.current) {
         console.log('[playWinner] Auto-play already in progress, skipping');
@@ -1126,11 +1219,14 @@ const effectivePaused = !!roundState && roundState.status === 'playing' && (isPa
     };
   }, [
     roundState?.status,
-    roundState?.scoreboard,
-    roundState?.player_order,
+    topSongOverall,
     winnerSongPlayed,
+    activeTrackUri,
+    isActiveTrackPlaying,
     isHost,
     spotify?.ready,
+    spotify?.isSdkPlaying,
+    spotify?.currentTrackUri,
     roomSettings.auto_play_winner_song,
     roomSettings.auto_play_winner_duration,
     spotify
@@ -1151,7 +1247,12 @@ const effectivePaused = !!roundState && roundState.status === 'playing' && (isPa
       const response = await fetch('/api/rounds/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomId: room.id, playerId: currentPlayer.id, scenario: scenario.trim() }),
+        body: JSON.stringify({
+          roomId: room.id,
+          playerId: currentPlayer.id,
+          scenario: scenario.trim(),
+          settings: roomSettings,
+        }),
       });
 
       const data = await response.json();
@@ -1168,28 +1269,12 @@ if (data.round?.id) {
         fetchRound(data.round.id);
         
 // Auto-play first song when round starts (host only)
-        // FIX: Use ref to avoid stale closure
         if (isHost) {
-          console.log('[Auto-play] Scheduling auto-play after round loads');
-          
-          // Use ref to get the current track URI (avoids stale closure)
-          const waitForRoundAndPlay = async () => {
-            // Wait up to 2 seconds for roundState to update
-            for (let i = 0; i < 20; i++) {
-              await new Promise(r => setTimeout(r, 100));
-              const currentPickUri = currentPickUriRef.current;
-              if (currentPickUri) {
-console.log('[Auto-play] Round loaded, track URI:', currentPickUri);
-                await playTrackUri(currentPickUri);
-                // After auto-play: button shows "⏸" (music is playing, click to pause)
-                setPlaybackActive(true);
-                return;
-              }
-            }
-            console.log('[Auto-play] Timeout waiting for roundState');
-          };
-          
-          waitForRoundAndPlay();
+          const firstUri = data.round?.current_pick?.uri;
+          if (firstUri) {
+            await playTrackUri(firstUri);
+            setPlaybackActive(true);
+          }
         }
       }
     } catch (error) {
@@ -1220,6 +1305,9 @@ console.log('[Auto-play] Round loaded, track URI:', currentPickUri);
     }
 
     setVoteSuccess('Vote saved!');
+    if (room.active_round_id) {
+      await fetchRound(room.active_round_id);
+    }
     setRoundState((prev) => {
       if (!prev) return prev;
       return {
@@ -1252,7 +1340,7 @@ setNextError(data.error || 'Could not move to next player.');
     }
 
 if (data.status === 'finished') {
-      setRoundState((prev) => (prev ? { ...prev, status: 'finished' } : prev));
+      await fetchRound(room.active_round_id);
       // FIX: Don't manually set isPlaying state - let SDK state listener handle it
       // We keep currentPlayingUri for reference but let SDK manage playback state
       setIsTransitioning(false);
@@ -1292,43 +1380,23 @@ setVoteScore(null);
       setIsTransitioning(false);
       
 // Auto-play new song when advancing to next player (host only)
-      // FIX: Use ref to avoid stale closure
       if (isHost) {
-        console.log('[Auto-play] Scheduling auto-play after next player');
-        
-        // Use ref to get the current track URI (avoids stale closure)
-        const waitForRoundAndPlay = async () => {
-          // Wait up to 2 seconds for roundState to update
-          for (let i = 0; i < 20; i++) {
-            await new Promise(r => setTimeout(r, 100));
-            const currentPickUri = currentPickUriRef.current;
-            if (currentPickUri) {
-console.log('[Auto-play] Round updated, track URI:', currentPickUri);
-              await playTrackUri(currentPickUri);
-              // After auto-play: button shows "⏸" (music is playing, click to pause)
-              setPlaybackActive(true);
-              return;
-            }
-          }
-          console.log('[Auto-play] Timeout waiting for roundState');
-        };
-        
-        waitForRoundAndPlay();
+        if (data.pick.uri) {
+          await playTrackUri(data.pick.uri);
+          setPlaybackActive(true);
+        }
       } else {
         setCurrentPlayingUri(data.pick.uri);
       }
+
+      // Refresh canonical round state after playback has already switched.
+      void fetchRound(room.active_round_id);
     }
   };
 
 // FIX: Add ref for debounce to prevent rapid clicking
   const lastPlaybackActionRef = useRef<number>(0);
   const MIN_ACTION_INTERVAL_MS = 500;
-
-// FIX: Use ref to track the current pick for auto-play (avoids stale closure)
-  const currentPickUriRef = useRef<string | null>(null);
-  useEffect(() => {
-    currentPickUriRef.current = currentPick?.uri ?? null;
-  }, [currentPick?.uri]);
 
 // FIX: Auto-play guard to prevent multiple simultaneous auto-play calls
   const autoPlayInProgressRef = useRef<boolean>(false);
@@ -1411,13 +1479,14 @@ try {
   };
 
 const handleReturnToLobby = async () => {
-    // Go directly to lobby - immediately redirect when button is clicked
-    // No need to check isInTransition - user can click anytime to return immediately
     setShowLobbyAfterRound(true);
     setRoundState((prev) => prev ? { ...prev, status: 'finished' } : prev);
-    setRoom((prev) => prev ? { ...prev, active_round_id: null } : null);
-    
-    // If host, also clear active_round_id on server (without broadcasting)
+
+    // Immediate local lobby state; realtime will reconcile for everyone.
+    setRoom((prev) => prev ? { ...prev, active_round_id: null } : prev);
+    setRoundState(null);
+
+    // Host clears server state for the room.
     if (isHost && room?.room_code && currentPlayer?.id) {
       fetch(`/api/rooms/${room.room_code}/end-round`, {
         method: 'POST',
@@ -1557,7 +1626,6 @@ return (
                   <div className="players-grid">
                   {players.map((player) => {
                     const isMe = player.id === currentPlayer?.id;
-                    const hasSpotify = player.spotify_connected;
                     const isPlayerHost = player.id === room?.host_id;
 
 return (
@@ -1568,42 +1636,6 @@ return (
                           {isMe && <span className="you-badge"> (you)</span>}
                         </span>
                         <div className="player-card-right">
-{/* Task 1: Clickable Spotify button - only clickable by the player themselves */}
-                        <div className="player-spotify-controls">
-{isMe && !hasSpotify ? (
-                            <button
-                              type="button"
-                              className="spotify-connect-cta"
-                              onClick={handleConnectSpotify}
-                              aria-label="Connect Spotify"
-                              title="Connect Spotify"
-                            >
-                              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                                <polyline points="15,3 21,3 21,9"></polyline>
-                                <line x1="10" y1="14" x2="21" y2="3"></line>
-                              </svg>
-                            </button>
-                          ) : (
-                            <div
-                              className={`spotify-status-icon ${hasSpotify ? 'connected' : 'disconnected'}`}
-                              aria-label={hasSpotify ? 'Spotify connected' : 'Spotify not connected'}
-                              title={hasSpotify ? 'Spotify connected' : 'Spotify not connected'}
-                            >
-                              {hasSpotify ? (
-                                <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
-                                  <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm4.586 14.424c-.18.295-.565.387-.86.207-2.377-1.454-5.37-1.783-8.893-.982-.336.075-.668-.135-.744-.47-.077-.337.135-.668.47-.745 3.856-.88 7.15-.51 9.82.124.296.18.387.563.207.866zm1.224-2.724c-.226.367-.707.487-1.074.26-2.72-1.672-6.87-2.157-10.08-1.182-.413.125-.847-.107-.972-.52-.125-.413.108-.847.52-.972 3.67-1.114 8.243-.574 11.35 1.335.366.226.486.706.257 1.08zM17.91 11.416c-3.262-1.937-8.644-2.115-11.75-1.173-.5.15-.1.916-.15.414-.15-.5.103-.918.414-1.07 3.585-1.087 9.53-.884 13.29 1.347.45.267.6.848.333 1.3-.267.45-.848.6-1.3.332z"/>
-                                </svg>
-                              ) : (
-                                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M9 18V5l12-2v13"></path>
-                                  <circle cx="6" cy="18" r="3"></circle>
-                                  <circle cx="18" cy="16" r="3"></circle>
-                                  <line x1="3" y1="3" x2="21" y2="21"></line>
-                                </svg>
-                              )}
-                            </div>
-                          )}
                           {isHost && !isMe && !room?.active_round_id ? (
                             <button
                               type="button"
@@ -1619,7 +1651,6 @@ return (
                               {kickingPlayerId === player.id ? 'Kicking…' : 'Kick'}
                             </button>
                           ) : null}
-                        </div>
                         </div>
 </div>
                     );
@@ -1638,7 +1669,7 @@ return (
 
           {currentPlayer ? (
             <div className="room-summary">
-{isHost && !room?.active_round_id ? (
+              {isHost && !room?.active_round_id ? (
                 <div className="scenario-selection-area">
                   {scenario && (
                     <div className="current-scenario-display">
@@ -1650,23 +1681,16 @@ return (
                     <button
                       type="button"
                       className="scenario-button"
-                      onClick={() => setShowPresetScenarios(true)}
+                      onClick={() => setShowScenarioMenuModal(true)}
                     >
-                      📋 Saved
+                      🎬 Scenario
                     </button>
                     <button
                       type="button"
                       className="scenario-button"
-                      onClick={() => setShowCustomScenarioInput(true)}
+                      onClick={() => setShowMusicSelectionModal(true)}
                     >
-                      ✏️ Custom 
-                    </button>
-                    <button
-                      type="button"
-                      className="scenario-button"
-                      onClick={() => setShowCommunitySuggestions(true)}
-                    >
-                      🎵 Suggestions
+                      🎵 Music Selection
                     </button>
                   </div>
                 </div>
@@ -1703,7 +1727,6 @@ return (
                   </div>
                 )}
 
-                {currentPlayer && isHost && !allSpotifyConnected ? <p className="hint">All players must connect Spotify before starting.</p> : null}
               </>
             ) : null}
 </div>
@@ -1743,22 +1766,9 @@ return (
               
 <div className="scoreboard-scroll-container">
                 <div className="scoreboard-container">
-                {roundState.scoreboard.length > 0 ? (
-                  Array.from(
-                    new Map(
-                      roundState.scoreboard
-                        .filter((row) => row.user_id && row.track_name && row.uri)
-                        .map((row) => [row.user_id, row])
-                    ).values()
-                  )
-                    .slice(0, roundState.player_order.length)
-                    .sort((a, b) => {
-                      const avgA = a.vote_count > 0 ? a.score_total / a.vote_count : 0;
-                      const avgB = b.vote_count > 0 ? b.score_total / b.vote_count : 0;
-                      if (avgB !== avgA) return avgB - avgA;
-                      return b.score_total - a.score_total;
-                    })
-                    .map((row, index) => {
+                {playerScoreboard.length > 0 ? (
+                  <>
+                    {playerScoreboard.map((player, index) => {
                       const rank = index + 1;
 // Show all rows immediately (no animation)
                       
@@ -1766,32 +1776,47 @@ return (
                       const rankClass = rank <= 3 ? `rank-${rank}` : '';
 
                       return (
-<div key={row.id} className={`scoreboard-row-card ${rankClass}`}>
+<div
+                          key={player.user_id}
+                          className={`scoreboard-row-card score-row-clickable ${rankClass}`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedScoreboardPlayerId(player.user_id)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setSelectedScoreboardPlayerId(player.user_id);
+                            }
+                          }}
+                          title="Show player song details"
+                        >
                           {/* Platzierung */}
                           <div className="score-rank">
                             {rank === 1 ? '👑' : rank}
                           </div>
 
                           {/* Song Cover */}
-                          {row.cover_url && (
-                            <img src={row.cover_url} alt={row.track_name} className="score-cover" />
+                          {player.bestSong?.cover_url && (
+                            <img src={player.bestSong.cover_url} alt={player.bestSong.track_name} className="score-cover" />
                           )}
 
                           {/* Infos über Spieler & Song */}
                           <div className="score-info">
-                            <span className="score-player-name">{row.user_name}</span>
+                            <span className="score-player-name">{player.user_name}</span>
                             <span className="score-track-details">
-                              {row.track_name} • {row.artist_names}
+                              {player.bestSong ? `${player.bestSong.track_name} • ${player.bestSong.artist_names}` : 'No song data'}
                             </span>
+                            <span className="score-vote-count">{player.songCount} songs counted</span>
                           </div>
 
 {/* Punkteauswertung ganz rechts */}
                           <div className="score-points-box">
-                            <span className="score-total-pts">{row.vote_count > 0 ? (row.score_total / row.vote_count).toFixed(1) : '0.0'}</span>
+                            <span className="score-total-pts">{player.avgScore.toFixed(1)}</span>
                           </div>
                         </div>
                       );
-                    })
+                    })}
+                  </>
 ) : (
                   <div className="scoreboard-row-card">
                     <p className="hint" style={{ margin: 0 }}>No results available.</p>
@@ -1826,14 +1851,13 @@ return (
             <>
 <div className="track-card scenario-2">
 <p className="player-display">
-                  {/* Merged: Player X/Y: 'name' - Anonymous Voting hides name until ALL votes are cast */}
-                  Player {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.length}:{' '}
+                  {/* Round X/Y with optional player name visibility */}
+                  Round {(roundState.current_turn_index ?? 0) + 1}/{roundState.player_order.length}
                   {showPlayerName ? (
-                    <strong>{currentPick?.user_name ?? 'Loading …'}</strong>
-                  ) : (
-                    // Show blur field when anonymous voting is active and not all votes are cast
-                    <span className="blur-field" aria-label="Unknown player" />
-                  )}
+                    <>
+                      : <strong>{currentPick?.user_name ?? 'Loading …'}</strong>
+                    </>
+                  ) : null}
                 </p>
 
                 {currentPick ? (
@@ -1941,6 +1965,32 @@ className="rating-slider"
           )}
 </section>
       ) : null}
+
+      {selectedScoreboardPlayer && roundState?.status === 'finished' ? (
+        <div className="modal-overlay" onClick={() => setSelectedScoreboardPlayerId(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>{selectedScoreboardPlayer.user_name}</h2>
+            <p className="hint" style={{ marginTop: 0 }}>
+              Average {selectedScoreboardPlayer.avgScore.toFixed(1)} • {selectedScoreboardPlayer.songCount} songs
+            </p>
+            <div className="player-song-detail-list">
+              {selectedScoreboardPlayer.songs.map((song, index) => (
+                <div key={`${song.id}-${index}`} className="player-song-detail-item">
+                  {song.cover_url ? <img src={song.cover_url} alt={song.track_name} className="player-song-detail-cover" /> : null}
+                  <div className="player-song-detail-info">
+                    <span className="player-song-detail-title">{song.track_name}</span>
+                    <span className="player-song-detail-artist">{song.artist_names}</span>
+                  </div>
+                  <div className="player-song-detail-score">{song.avgScore.toFixed(1)}</div>
+                </div>
+              ))}
+            </div>
+            <button type="button" className="button btn-ghost" onClick={() => setSelectedScoreboardPlayerId(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
 {/* Settings Modal - nur in Lobby oder aktiver Runde, NICHT im Scoreboard */}
     {showSettings && (!isPlayingRound || roundState?.status === 'playing') && !effectivePaused && (
       <div className="modal-overlay" onClick={() => setShowSettings(false)}>
@@ -1964,7 +2014,7 @@ className="rating-slider"
               </button>
             </div>
           )}
-          {/* Auto-Advance - nur Host kann ändern */}
+          {/* Music selection moved to lobby */}
           {isHost && (
             <div className="settings-section">
               <p className="setting-label">Auto-Advance</p>
@@ -2013,7 +2063,7 @@ className="rating-slider"
                   checked={roomSettings.anonymous_voting}
                   onChange={(e) => handleUpdateSettings({ ...roomSettings, anonymous_voting: e.target.checked })}
                 />
-                <span>Hide player names until everyone votes</span>
+                <span>Hide player names during the whole round</span>
               </label>
             </div>
           )}
@@ -2045,9 +2095,9 @@ className="rating-slider"
         <div className="modal-content" onClick={(e) => e.stopPropagation()}>
           <h2>📋 Saved</h2>
           <div className="preset-scenarios-list">
-            {SCENARIOS.filter(s => s !== 'Custom...').map((s) => (
-              <div 
-                key={s} 
+            {SCENARIOS.filter((s) => s !== 'Custom...').map((s) => (
+              <div
+                key={s}
                 className={`preset-scenario-item ${scenario === s ? 'selected' : ''}`}
                 onClick={() => {
                   setScenario(s);
@@ -2059,6 +2109,110 @@ className="rating-slider"
             ))}
           </div>
           <button type="button" className="button btn-ghost" onClick={() => setShowPresetScenarios(false)}>
+            Close
+          </button>
+        </div>
+      </div>
+    )}
+
+    {showMusicSelectionModal && isHost && !room?.active_round_id && (
+      <div className="modal-overlay" onClick={closeMusicSelectionModal}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <h2>Music Selection</h2>
+          <div className="music-selection-panel">
+            <label className="setting-label" htmlFor="songs-per-player-wheel">Songs per player: {songsPerPlayerDraft}</label>
+            <div className="music-wheel-wrapper">
+              <input
+                id="songs-per-player-wheel"
+                className="music-wheel-slider"
+                type="range"
+                min="1"
+                max="10"
+                step="1"
+                value={songsPerPlayerDraft}
+                onChange={(event) => {
+                  const amount = Math.min(10, Math.max(1, Number(event.target.value) || 1));
+                  setSongsPerPlayerDraft(amount);
+                }}
+                onPointerDown={() => setIsDraggingSongsWheel(true)}
+                onPointerUp={() => {
+                  setIsDraggingSongsWheel(false);
+                  commitSongsPerPlayer();
+                }}
+                onPointerCancel={() => setIsDraggingSongsWheel(false)}
+                onKeyUp={commitSongsPerPlayer}
+              />
+              <div className="music-wheel-scale">
+                <span>1</span>
+                <span>5</span>
+                <span>10</span>
+              </div>
+            </div>
+            <label className="setting-label" htmlFor="library-amount-modal">Library size</label>
+            <select
+              id="library-amount-modal"
+              className="music-select-field"
+              value={roomSettings.library_amount}
+              onChange={(event) => handleUpdateSettings({ ...roomSettings, library_amount: Number(event.target.value) as RoomSettings['library_amount'] })}
+            >
+              {[50, 100, 250, 500].map((amount) => <option key={amount} value={amount}>Top {amount}</option>)}
+            </select>
+            <label className="setting-label" htmlFor="library-period-modal">Time period</label>
+            <select
+              id="library-period-modal"
+              className="music-select-field"
+              value={roomSettings.library_period}
+              onChange={(event) => handleUpdateSettings({ ...roomSettings, library_period: event.target.value as RoomSettings['library_period'] })}
+            >
+              <option value="short_term">Last 4 weeks</option>
+              <option value="medium_term">Last 6 months</option>
+              <option value="long_term">All time</option>
+            </select>
+          </div>
+          <button type="button" className="button btn-ghost" onClick={closeMusicSelectionModal}>
+            Close
+          </button>
+        </div>
+      </div>
+    )}
+
+    {showScenarioMenuModal && isHost && !room?.active_round_id && (
+      <div className="modal-overlay" onClick={() => setShowScenarioMenuModal(false)}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <h2>Scenario</h2>
+          <div className="scenario-menu-modal-grid">
+            <button
+              type="button"
+              className="scenario-button scenario-menu-option"
+              onClick={() => {
+                setShowScenarioMenuModal(false);
+                setShowPresetScenarios(true);
+              }}
+            >
+              📋 Saved
+            </button>
+            <button
+              type="button"
+              className="scenario-button scenario-menu-option"
+              onClick={() => {
+                setShowScenarioMenuModal(false);
+                setShowCustomScenarioInput(true);
+              }}
+            >
+              ✏️ Custom
+            </button>
+            <button
+              type="button"
+              className="scenario-button scenario-menu-option"
+              onClick={() => {
+                setShowScenarioMenuModal(false);
+                setShowCommunitySuggestions(true);
+              }}
+            >
+              🎵 Suggestions
+            </button>
+          </div>
+          <button type="button" className="button btn-ghost" onClick={() => setShowScenarioMenuModal(false)}>
             Close
           </button>
         </div>
